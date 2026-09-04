@@ -1,0 +1,18 @@
+html,body,#root{margin:0;height:100%;overflow:hidden;background:#0e1114;font-family:Georgia,"Times New Roman",serif;color:#f2ede4}
+canvas{touch-action:none}
+.hud{position:fixed;inset:0;pointer-events:none}
+.title{position:absolute;top:12px;left:14px;text-shadow:0 1px 6px rgba(0,0,0,.55)}
+.title b{display:block;font-size:16px;font-weight:600}
+.title span{font-size:12px;opacity:.85}
+.mapbox{position:absolute;top:12px;right:12px;background:rgba(20,22,26,.72);border-radius:12px;padding:8px;backdrop-filter:blur(6px)}
+.mapbox canvas{display:block;width:170px;height:84px}
+.room{font-size:13px;text-align:center;margin-top:5px}
+.nav{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:96vw}
+.nav button,.alt button{font:13px Georgia,serif;color:#f2ede4;background:rgba(20,22,26,.62);border:1px solid rgba(255,255,255,.22);border-radius:20px;padding:8px 13px;backdrop-filter:blur(6px);cursor:pointer}
+.nav button:active,.alt button:active{background:#d8b56a;color:#1a1408;border-color:#d8b56a}
+.alt{position:absolute;right:14px;bottom:110px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+.alt button{width:48px;height:48px;border-radius:50%;font-size:20px;padding:0;touch-action:none}
+.hint{position:absolute;top:120px;left:14px;font-size:12px;opacity:.8;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.stick{position:absolute;width:110px;height:110px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);background:rgba(255,255,255,.08)}
+.knob{position:absolute;width:46px;height:46px;border-radius:50%;background:rgba(242,237,228,.85)}
+.loading{position:fixed;inset:0;display:grid;place-items:center;font-size:14px;opacity:.8}

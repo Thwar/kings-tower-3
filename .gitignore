@@ -1,0 +1,6 @@
+node_modules
+dist
+public/textures/*
+public/hdri/*
+!public/textures/.gitkeep
+!public/hdri/.gitkeep
