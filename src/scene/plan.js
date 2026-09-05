@@ -33,11 +33,14 @@ export const frames = [
   [7.8, 3.95, 7.8, 5.55, 0, 2.25],
 ]
 
+// Floor planes must never overlap each other or the slab top (z-fighting on mobile),
+// so the wood floor is split around the wet room instead of running underneath it.
 export const rooms = {
-  living:  { floor: 'wood',  rect: [0, 0, 7.8, 5.95] },
-  wet:     { floor: 'tile',  rect: [-0.4, 4.45, 3.35, 5.95], y: 0.004 },
+  living:  { floor: 'wood',  rect: [0, 0, 7.8, 5.95], rects: [[0, 0, 7.8, 4.45], [3.35, 4.45, 7.8, 5.95]] },
+  wet:     { floor: 'tile',  rect: [-0.4, 4.45, 3.35, 5.95] },
   terrace: { floor: 'stone', rect: [7.8, 0, 12.8, 5.95] },
 }
+export const SLAB_TOP = -0.02   // slab sits just below the floor planes
 
 export const downlights = [[1.2, 1.2], [2.6, 3.0], [5.6, 1.4], [4.3, 1.4], [5.4, 4.3], [1.0, 5.2], [2.7, 5.2]]
 

@@ -83,7 +83,7 @@ export function Furniture() {
       <B size={[0.05, 2.3, 0.6]} pos={[0.12, 1.15, 1.15]} mat={flat.linen} />
       <B size={[0.05, 2.3, 0.6]} pos={[0.12, 1.15, 2.95]} mat={flat.linen} />
       <B size={[0.03, 0.03, 2.0]} pos={[0.1, 2.35, 2.05]} mat={flat.frame} />
-      <B size={[2.4, 0.012, 2.8]} pos={[1.7, 0.006, 2.1]} mat={flat.rug} shadow={false} />
+      <B size={[2.4, 0.012, 2.8]} pos={[1.7, 0.009, 2.1]} mat={flat.rug} shadow={false} />
       <Sofa x={1.7} z={0.75} rot={0} fabric={fabric} />
       <Sofa x={1.7} z={3.45} rot={Math.PI} fabric={fabric} />
       <B size={[1.0, 0.05, 0.5]} pos={[1.7, 0.4, 2.1]} mat={flat.walnut} />
@@ -169,7 +169,7 @@ export function Furniture() {
       <B size={[0.45, 0.05, 0.45]} pos={[7.0, 0.45, 3.6]} mat={flat.frame} />
       <B size={[0.45, 0.5, 0.05]} pos={[7.0, 0.72, 3.8]} mat={flat.frame} />
       <B size={[0.04, 0.43, 0.04]} pos={[7.0, 0.22, 3.6]} mat={flat.steel} />
-      <B size={[2.2, 0.012, 1.5]} pos={[5.4, 0.006, 3.85]} mat={flat.rug} shadow={false} />
+      <B size={[2.2, 0.012, 1.5]} pos={[5.4, 0.009, 3.85]} mat={flat.rug} shadow={false} />
       <Plant x={7.4} z={5.5} s={0.9} />
       <B size={[0.7, 0.5, 0.03]} pos={[5.4, 1.7, 5.88]} mat={flat.frame} />
       <B size={[0.62, 0.42, 0.01]} pos={[5.4, 1.7, 5.865]} mat={flat.art} />
@@ -217,7 +217,7 @@ export function Furniture() {
       <Plant x={8.2} z={0.5} s={1.2} />
       <Plant x={12.3} z={5.0} s={1.0} />
       <B size={[0.12, 0.25, 0.12]} pos={[10.3, 2.0, 0.08]} mat={flat.frame} />
-      <B size={[3.0, 0.012, 2.2]} pos={[11.0, 0.006, 3.2]} mat={flat.rug} shadow={false} />
+      <B size={[3.0, 0.012, 2.2]} pos={[11.0, 0.009, 3.2]} mat={flat.rug} shadow={false} />
     </group>
   )
 }

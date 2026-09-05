@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import * as THREE from 'three'
-import { walls, frames, rooms, downlights, H, T } from './plan.js'
+import { walls, frames, rooms, downlights, H, T, SLAB_TOP } from './plan.js'
 import { usePBR, flat } from './materials.js'
 import { Furniture } from './Furniture.jsx'
 
@@ -64,11 +64,11 @@ export function Apartment({ showCeiling }) {
   return (
     <group>
       {/* floors */}
-      <Floor rect={rooms.living.rect} mat={wood} />
-      <Floor rect={rooms.wet.rect} mat={tile} y={0.004} />
+      {rooms.living.rects.map((r, i) => <Floor key={i} rect={r} mat={wood} />)}
+      <Floor rect={rooms.wet.rect} mat={tile} />
       <Floor rect={rooms.terrace.rect} mat={stone} />
-      {/* slab + exterior faces */}
-      <B size={[15, 0.4, 8]} pos={[6.4, -0.2, 3]} mat={conc} shadow={false} />
+      {/* slab + exterior faces (slab top stays below y=0 so it never fights the floors) */}
+      <B size={[15, 0.4, 8]} pos={[6.4, SLAB_TOP - 0.2, 3]} mat={conc} shadow={false} />
       <B size={[0.2, H + 0.4, 6.2]} pos={[12.9, H / 2 - 0.2, 3]} mat={conc} shadow={false} />
 
       {walls.map((w, i) => <Wall key={i} seg={w} mat={wallMat} />)}
