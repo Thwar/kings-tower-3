@@ -12,6 +12,18 @@ import { spots } from './scene/plan.js'
 
 const isTouch = matchMedia('(pointer:coarse)').matches
 
+// Anything that throws inside Suspense (a failed fetch, a bad asset) would otherwise unmount the
+// whole canvas and leave a blank page. Fall back to `fallback` instead and keep rendering.
+class Boundary extends React.Component {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(e) { console.warn('[scene] fallback:', e?.message || e) }
+  render() { return this.state.failed ? this.props.fallback ?? null : this.props.children }
+}
+
+// Procedural sky + lighting when no HDRI is available. No network needed.
+const ProceduralSky = () => <Sky sunPosition={[9, 16, -6]} turbidity={6} rayleigh={1.5} />
+
 function Skyline() {
   const items = useMemo(() => {
     let seed = 7; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 }
@@ -38,9 +50,13 @@ function Scene({ cam, input, hasHdri }) {
   const [above, setAbove] = useState(false)
   return (
     <>
-      {hasHdri
-        ? <Environment files={import.meta.env.BASE_URL + 'hdri/sky.hdr'} background blur={0} />
-        : <><Sky sunPosition={[9, 16, -6]} turbidity={6} rayleigh={1.5} /><Environment preset="city" /></>}
+      <Boundary fallback={<ProceduralSky />}>
+        <Suspense fallback={<ProceduralSky />}>
+          {hasHdri
+            ? <Environment files={import.meta.env.BASE_URL + 'hdri/sky.hdr'} background blur={0} />
+            : <><ProceduralSky /><Environment preset="city" /></>}
+        </Suspense>
+      </Boundary>
       <hemisphereLight args={['#dfe8f2', '#7d6f60', 1.1]} />
       <directionalLight
         position={[9, 16, -6]} intensity={3} color="#fff3df" castShadow
@@ -80,9 +96,11 @@ export default function App() {
         gl={{ antialias: isTouch, powerPreference: 'high-performance', toneMapping: isTouch ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping, toneMappingExposure: 0.95 }}
         onCreated={({ gl }) => { gl.shadowMap.type = THREE.PCFSoftShadowMap }}
       >
-        <Suspense fallback={null}>
-          <Scene cam={cam} input={input} hasHdri={hasHdri} />
-        </Suspense>
+        <Boundary fallback={<><ProceduralSky /><hemisphereLight args={['#dfe8f2', '#7d6f60', 1.1]} /><Apartment showCeiling /><FlyControls cam={cam} input={input} /></>}>
+          <Suspense fallback={null}>
+            <Scene cam={cam} input={input} hasHdri={hasHdri} />
+          </Suspense>
+        </Boundary>
       </Canvas>
       <Hud cam={cam} input={input} hintDesktop={!isTouch} />
     </ManifestCtx.Provider>

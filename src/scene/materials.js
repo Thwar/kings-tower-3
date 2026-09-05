@@ -1,5 +1,4 @@
 import { useEffect, useState, createContext, useContext } from 'react'
-import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 
 // Which texture sets exist on disk (written by `npm run assets`).
@@ -14,28 +13,41 @@ export function useManifest() {
 }
 
 // Loads color/normal/roughness/ao for a set and returns a ready material.
-// Falls back to a flat MeshPhysicalMaterial if the set isn't downloaded yet.
+// Starts as a flat MeshPhysicalMaterial and upgrades in place as maps arrive.
+// Loading is NOT suspense-based on purpose: a missing or failed map (404, blocked CDN,
+// texture set without ao.jpg) must never unmount the scene — it just stays flat.
+const MAPS = { map: 'color', normalMap: 'normal', roughnessMap: 'roughness', aoMap: 'ao' }
+const loader = new THREE.TextureLoader()
+
 export function usePBR(key, { repeat = [1, 1], color = '#cccccc', roughness = 0.8, ...rest } = {}) {
   const manifest = useContext(ManifestCtx)
-  const has = !!manifest[key]
-  const maps = useTexture(
-    has
-      ? { map: `${import.meta.env.BASE_URL}textures/${key}/color.jpg`, normalMap: `${import.meta.env.BASE_URL}textures/${key}/normal.jpg`, roughnessMap: `${import.meta.env.BASE_URL}textures/${key}/roughness.jpg`, aoMap: `${import.meta.env.BASE_URL}textures/${key}/ao.jpg` }
-      : {}
-  )
+  const entry = manifest[key]
   const [mat] = useState(() => new THREE.MeshPhysicalMaterial({ color, roughness, ...rest }))
+  const [rx, ry] = repeat
   useEffect(() => {
-    if (!has) return
-    for (const [k, t] of Object.entries(maps)) {
-      t.wrapS = t.wrapT = THREE.RepeatWrapping
-      t.repeat.set(repeat[0], repeat[1])
-      t.anisotropy = 8
-      if (k === 'map') t.colorSpace = THREE.SRGBColorSpace
-      mat[k] = t
+    if (!entry) return
+    // manifest entry is either `true` (legacy: assume all four maps) or an array of map names present
+    const present = Array.isArray(entry) ? entry : Object.values(MAPS)
+    let alive = true
+    for (const [slot, name] of Object.entries(MAPS)) {
+      if (!present.includes(name)) continue
+      loader.load(
+        `${import.meta.env.BASE_URL}textures/${key}/${name}.jpg`,
+        t => {
+          if (!alive) return
+          t.wrapS = t.wrapT = THREE.RepeatWrapping
+          t.repeat.set(rx, ry)
+          t.anisotropy = 8
+          if (slot === 'map') { t.colorSpace = THREE.SRGBColorSpace; mat.color.set('#ffffff') }
+          mat[slot] = t
+          mat.needsUpdate = true
+        },
+        undefined,
+        () => {} // missing map: keep whatever we have
+      )
     }
-    mat.color.set('#ffffff')
-    mat.needsUpdate = true
-  }, [has, maps, mat, repeat])
+    return () => { alive = false }
+  }, [entry, key, mat, rx, ry])
   return mat
 }
 

@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import AdmZip from 'adm-zip'
 
 const TEX = {
-  // key: ambientCG asset id (1K JPG). Swap ids to taste — browse https://ambientcg.com
+  // key: ambientCG asset id (1K JPG). Not every set ships an AmbientOcclusion map — manifest.json
+  // records which maps each set actually has so the app only requests those. Swap ids to taste — browse https://ambientcg.com
   woodFloor: 'WoodFloor051',
   tile: 'Tiles074',
   terrace: 'PavingStones131',
@@ -29,7 +30,8 @@ async function download(url) {
 const manifest = {}
 for (const [key, id] of Object.entries(TEX)) {
   const out = join(texDir, key)
-  if (existsSync(join(out, 'color.jpg'))) { manifest[key] = true; console.log('skip', key); continue }
+  const have = () => ['color', 'normal', 'roughness', 'ao'].filter(m => existsSync(join(out, `${m}.jpg`)))
+  if (existsSync(join(out, 'color.jpg'))) { manifest[key] = have(); console.log('skip', key); continue }
   process.stdout.write(`↓ ${id} … `)
   try {
     const zip = new AdmZip(await download(`https://ambientcg.com/get?file=${id}_1K-JPG.zip`))
@@ -40,8 +42,8 @@ for (const [key, id] of Object.entries(TEX)) {
         : /AmbientOcclusion\.jpg$/i.test(n) ? 'ao' : null
       if (map) writeFileSync(join(out, `${map}.jpg`), e.getData())
     }
-    manifest[key] = true; console.log('ok')
-  } catch (e) { console.log('failed:', e.message); manifest[key] = false }
+    manifest[key] = have(); console.log('ok', have().join(','))
+  } catch (e) { console.log('failed:', e.message); manifest[key] = null }
 }
 writeFileSync(join(texDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
 
@@ -53,4 +55,4 @@ if (!existsSync(hdrOut)) {
     console.log('ok')
   } catch (e) { console.log('failed:', e.message) }
 }
-console.log('\nTextures:', Object.values(manifest).filter(Boolean).length, '/', Object.keys(TEX).length, '· HDRI:', existsSync(hdrOut))
+console.log('\nTextures:', Object.values(manifest).filter(v => v && v.length).length, '/', Object.keys(TEX).length, '· HDRI:', existsSync(hdrOut))
