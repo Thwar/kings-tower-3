@@ -65,7 +65,8 @@ Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 9, bottom: -9, nea
 sun.shadow.camera.updateProjectionMatrix()
 sun.target.position.copy(CENTER)
 scene.add(sun, sun.target)
-scene.add(new THREE.HemisphereLight('#dfe7f0', '#6f6a63', 0.4))
+const hemi = new THREE.HemisphereLight('#dfe7f0', '#6f6a63', 0.4)
+scene.add(hemi)
 
 // ground shadow catcher so the slab floats on a soft shadow like a model on a table
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.25 }))
@@ -129,9 +130,23 @@ const parts = { walls: [], ceiling: [], glass: [] }   // walls: { mesh, side }
 const footprints = []   // [x, z, w, d] of furniture, for the minimap
 let model = null
 const loader = new GLTFLoader()
+const texLoader = new THREE.TextureLoader()
+const LM_INTENSITY = +(q.get('lm') ?? 3.2)   // π (three's lightmap convention) × 2 (bake saved at −1 stop)
+let baked = false
 loader.load('apartment.glb', gltf => {
   model = gltf.scene
   model.traverse(o => {
+    if (o.isMesh && o.userData.lightmap && o.geometry.attributes.uv1 && !o.material.transparent) {   // glass keeps its plain look
+      baked = true
+      const t = texLoader.load('lightmaps/' + o.userData.lightmap, () => { dirty = true })
+      t.colorSpace = THREE.SRGBColorSpace
+      t.flipY = false
+      t.channel = 1          // sample with the lightmap UVs (TEXCOORD_1), not the texture UVs
+      o.material.lightMap = t
+      o.material.lightMapIntensity = LM_INTENSITY
+      o.material.needsUpdate = true
+    }
+    if (o.isMesh && o.material.transparent) { o.material.depthWrite = false; o.renderOrder = 10 }
     if (!o.isMesh) return
     const x = o.userData || {}
     o.castShadow = x.part !== 'floor' && x.part !== 'glass' && x.part !== 'ceiling'
@@ -156,7 +171,12 @@ loader.load('apartment.glb', gltf => {
     }
     if (o.material.emissive && o.material.emissiveIntensity > 0) o.material.toneMapped = false
   })
-  mergeStatic(model)
+  if (baked) {
+    // lighting lives in the lightmaps: no real-time lights, no shadow map, just a faint environment for reflections
+    sun.intensity = 0; hemi.intensity = 0; ground.visible = false
+    renderer.shadowMap.enabled = false
+    scene.environmentIntensity = +(q.get('env') ?? 0.18)
+  } else mergeStatic(model)
   scene.add(model)
   $('#loading').classList.add('done')
   applyCutaway(true)
@@ -396,6 +416,7 @@ const MS = map.width / (PLAN.x1 - PLAN.x0)
 const mx = x => (x - PLAN.x0) * MS, mz = z => (z - PLAN.z0) * MS
 const planLayer = document.createElement('canvas'); planLayer.width = map.width; planLayer.height = map.height
 let planDrawn = false
+fetch('footprints.json').then(r => r.ok ? r.json() : []).then(list => { if (list.length) { footprints.length = 0; footprints.push(...list); planDrawn = false; dirty = true } }).catch(() => {})
 function drawPlanLayer() {
   const g = planLayer.getContext('2d')
   g.clearRect(0, 0, map.width, map.height)

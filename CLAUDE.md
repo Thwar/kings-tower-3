@@ -10,6 +10,9 @@ Two apps, one Pages deploy (see README):
   take `ext=(start, end)` flags and only extend into corners, never into openings.
 - `blender/textures.py` — procedural seamless PBR sets (numpy → jpg via bpy), cached in `blender/tex/`. Add a set there, then
   `tmat(...)` it in the build script; UVs are box-projected automatically from the set's tile size.
+- `blender/bake_lightmaps.py` — the lighting bake. Any model change → run it (full quality ≈ 25 min CPU, `--fast` ≈ 5 min)
+  and commit `site/apartment.glb`, `site/lightmaps/` and `site/footprints.json` together. Lightmap textures must be sampled on
+  UV channel 1 in the viewer (`texture.channel = 1`) and are lighting-only (Cycles DIFFUSE bake without COLOR).
 - `blender/render_views.py` — Cycles renders for the "Blender renders" tab; `--fast` for previews. Commit the JPGs.
 - `src/` — the older first-person walkthrough (Vite + React Three Fiber), built to `dist/walk`. Keep `npm run build` green.
 

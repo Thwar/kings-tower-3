@@ -17,7 +17,14 @@ pip install bpy                                   # Blender as a Python module (
 python3 blender/build_apartment.py                # → site/apartment.glb
 python3 blender/build_apartment.py --blend        # also writes blender/apartment.blend to open in Blender
 python3 blender/render_views.py [--fast]          # Cycles renders → site/renders/*.jpg (the "Blender renders" tab)
+python3 blender/bake_lightmaps.py [--fast]        # bakes Cycles lighting → site/lightmaps/*.jpg + apartment.glb with lightmap UVs
 ```
+
+`bake_lightmaps.py` is what gives the viewer its photographic look: it merges the model into one mesh per material
+(walls per side, so the cutaway still works), unwraps a second UV set, bakes diffuse global illumination with Cycles
+(sky + sun + the apartment's own lamps, ceiling removed so the cutaway reads evenly lit) and writes the result into
+`site/lightmaps/`. The viewer multiplies albedo by lightmap and adds only a faint environment for reflections — no
+real-time lights or shadow maps, which is also why it stays at 60 fps. Run it after any change to the model.
 
 Materials are PBR image textures (oak planks, plaster, concrete, charcoal linen, leather, quartz, tiles, paving…) generated
 procedurally by `blender/textures.py` — seamless, deterministic, no downloads — and box-projected in world space so grain and
