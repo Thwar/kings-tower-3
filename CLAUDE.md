@@ -1,11 +1,14 @@
 # Project notes for Claude Code
 
-Vite + React 18 + three r169 + @react-three/fiber 8 + drei 9 + @react-three/postprocessing.
+Two apps, one Pages deploy (see README):
 
-- Units are metres. x → east, z → south, y → up. Origin is the NW corner of the living room. See `src/scene/plan.js`.
-- Ceiling height `H = 2.6`, wall thickness `T = 0.14`.
-- Materials: use `usePBR('<key>')` for anything textured; keys must exist in `scripts/fetch-assets.mjs` `TEX`. Never hard-fail when a texture is missing — the hook already falls back to flat colour.
-- Camera state lives in a mutable ref (`cam.current`), not React state, to avoid re-renders each frame. The HUD reads it in its own rAF loop.
-- Post-processing is disabled on touch devices for performance; keep that guard.
-- `npm run build` must stay green. `npm run assets` needs internet (ambientcg.com, dl.polyhaven.org).
-- Terrace railing, sliding doors and window are `glass` walls in `plan.js` — collision ignores nothing; the camera is meant to stay inside the apartment volume.
+- `site/` — **Apartment 3D** viewer at the site root. Plain HTML/CSS/JS + three.js vendored in `site/vendor` (no bundler, no CDN).
+  Viewpoints, copy and stats are in the `VIEWS` array at the top of `site/app.js`. Coordinates are metres, x east, y up, z south,
+  origin at the NW corner of the living room (same as the walkthrough's `plan.js`).
+- `blender/build_apartment.py` — the model. Change geometry/materials there, re-run it, commit the new `site/apartment.glb`.
+  Rules baked in: never let two boxes overlap with coincident faces (renders black in Cycles, z-fights in WebGL); wall segments
+  take `ext=(start, end)` flags and only extend into corners, never into openings.
+- `blender/render_views.py` — Cycles renders for the "Blender renders" tab; `--fast` for previews. Commit the JPGs.
+- `src/` — the older first-person walkthrough (Vite + React Three Fiber), built to `dist/walk`. Keep `npm run build` green.
+
+Deploy: push to `main` → Actions builds the walkthrough, copies `site/` on top, publishes to Pages.

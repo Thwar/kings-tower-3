@@ -20,8 +20,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run assets        # textures + HDRI downloaded on the runner
-      - run: npm run build
+      - run: npm run assets        # textures + HDRI for the walkthrough, downloaded on the runner
+      - run: npm run build         # walkthrough → dist/walk
+      - run: cp -R site/. dist/    # Blender-model viewer (+ apartment.glb, renders) → site root
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

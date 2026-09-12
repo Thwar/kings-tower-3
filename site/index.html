@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>King's Tower · Dept. D — 3D model</title>
+  <meta name="description" content="Interactive cutaway 3D model of King's Tower apartment D, modelled in Blender." />
+  <link rel="preload" href="apartment.glb" as="fetch" crossorigin />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.min.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+      <b>KING'S TOWER</b><span>/ DEPT. D</span>
+    </a>
+    <nav class="switch" aria-label="Perspective">
+      <a href="walk/"><span class="ico">⇢</span>Walkthrough</a>
+      <a class="on" href="./" aria-current="page"><span class="ico">⌂</span>Apartment 3D</a>
+    </nav>
+    <a class="download" href="apartment.glb" download="kings-tower-dept-d.glb">
+      <span class="ico">⤓</span>Download 3D model
+    </a>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="c"></canvas>
+
+    <aside class="card intro">
+      <small>INSIDE THE APARTMENT</small>
+      <h1 id="introTitle">Room to live.</h1>
+      <p><span id="introRoom">Whole apartment</span><i>/</i><span id="introArea">50.21 m² + 29.75 m² terrace</span></p>
+    </aside>
+
+    <div class="loading" id="loading"><span class="dot"></span><span id="loadingText">Opening the apartment · 0%</span></div>
+
+    <div class="corner">
+      <div class="chip"><span class="dot"></span>CUTAWAY<i>ONE LEVEL</i></div>
+      <div class="hint" id="hint">Drag to orbit · Right-drag to pan · Scroll to zoom</div>
+    </div>
+
+    <div class="modes" role="radiogroup" aria-label="Camera mode">
+      <button class="on" data-mode="orbit">◎ Orbit</button>
+      <button data-mode="pan">✥ Pan</button>
+      <button data-mode="walk">⚲ Walk</button>
+    </div>
+    <div class="toolbar">
+      <button data-act="rotL" title="Rotate left">↺</button>
+      <button data-act="rotR" title="Rotate right">↻</button>
+      <button data-act="up" title="Tilt up">︿</button>
+      <button data-act="down" title="Tilt down">﹀</button>
+      <button data-act="zoomOut" title="Zoom out">−</button>
+      <button data-act="zoomIn" title="Zoom in">+</button>
+      <button data-act="reset" title="Reset view">⤢</button>
+      <button data-act="full" title="Fullscreen">⛶</button>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel">
+    <div class="grip" id="grip"></div>
+    <small>THE SPACE</small>
+    <h2>Explore the apartment.</h2>
+    <div class="tabs" role="tablist">
+      <button class="on" data-tab="3d" role="tab">Interactive 3D</button>
+      <button data-tab="renders" role="tab">Blender renders</button>
+    </div>
+
+    <section id="tab3d">
+      <ol class="views" id="views"></ol>
+      <div class="toggles">
+        <label class="lead"><span>▤ Cutaway view</span><input type="checkbox" id="tgCut" checked /><i></i></label>
+        <label><span>Show ceiling</span><input type="checkbox" id="tgCeil" /><i></i></label>
+        <label><span>Auto rotate</span><input type="checkbox" id="tgSpin" /><i></i></label>
+      </div>
+      <div class="stats">
+        <div><b>50.21</b><small>m²</small><span>Interior</span></div>
+        <div><b>29.75</b><small>m²</small><span>Terrace</span></div>
+        <div><b>2.6</b><small>m</small><span>Ceiling height</span></div>
+      </div>
+      <p class="note">Modelled in Blender from the developer's floor plan. Furniture and smaller dimensions are approximate.</p>
+      <a class="link" href="walk/">→ Take the first-person walkthrough</a>
+    </section>
+
+    <section id="tabRenders" hidden>
+      <div class="gallery" id="gallery"></div>
+      <p class="note">Rendered with Cycles from the same model. Regenerate with <code>python3 blender/render_views.py</code>.</p>
+    </section>
+  </aside>
+
+  <footer class="foot">
+    <span>ONE APARTMENT / TWO PERSPECTIVES</span>
+    <a href="walk/">Take the walkthrough ↗</a>
+  </footer>
+
+  <div class="lightbox" id="lightbox" hidden><img alt="" id="lightboxImg" /><button id="lightboxClose" aria-label="Close">✕</button><div class="cap" id="lightboxCap"></div></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
