@@ -270,6 +270,7 @@ function setView(i) {
   dirty = true
   const v = VIEWS[i]
   document.querySelectorAll('#views button').forEach((b, j) => b.classList.toggle('on', j === i))
+  document.querySelectorAll('#rooms button').forEach((b, j) => b.classList.toggle('on', j + 1 === i))
   $('#introTitle').textContent = v.title
   $('#introRoom').textContent = v.room
   $('#introArea').textContent = v.area
@@ -417,6 +418,10 @@ if (WALK_ONLY) {
   $('#footWalk').href = './'; $('#footWalk').textContent = 'Back to the model ↗'
   document.querySelector('.chip').innerHTML = '<span class="dot"></span>WALKTHROUGH<i>FIRST PERSON</i>'
   $('#tgCut').closest('label').hidden = true; $('#tgCeil').closest('label').hidden = true; $('#tgSpin').closest('label').hidden = true
+  // full-bleed: no side panel, room chips float over the view
+  document.body.classList.add('walkmode')
+  const rooms = $('#rooms'); rooms.hidden = false
+  VIEWS.forEach((v, i) => { if (i === 0) return; const b = document.createElement('button'); b.textContent = v.name; b.addEventListener('click', () => setView(i)); rooms.appendChild(b) })
   setMode('walk')
 }
 resize()
