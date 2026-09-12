@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
@@ -33,13 +34,16 @@ const $ = s => document.querySelector(s)
 // ------------------------------------------------------------------ renderer / scene
 const canvas = $('#c')
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))   // retina at 2× is the single biggest GPU cost; 1.5 is visually close
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.shadowMap.enabled = true
 const q = new URLSearchParams(location.search)   // ?env=0.3&sun=4.5&exp=1 tweak the light balance while tuning
 renderer.toneMappingExposure = +(q.get('exp') ?? 1.0)
 renderer.shadowMap.type = q.get('shadow') === 'basic' ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap
+renderer.shadowMap.autoUpdate = false   // static scene: the shadow map is re-rendered only when visibility changes (see requestShadows)
+const requestShadows = () => { renderer.shadowMap.needsUpdate = true; dirty = true }
+let dirty = true                        // render-on-demand flag; anything that changes the picture sets it
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color('#616a75')
@@ -80,14 +84,15 @@ if (useAO) {
   gtao = new GTAOPass(scene, camera, 1, 1)
   gtao.output = GTAOPass.OUTPUT.Default
   gtao.blendIntensity = 0.9
-  gtao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1, thickness: 1, scale: 1.2, samples: 16, distanceFallOff: 1, screenSpaceRadius: false })
-  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 })
+  gtao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1, thickness: 1, scale: 1.2, samples: 8, distanceFallOff: 1, screenSpaceRadius: false })
+  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 8 })
   composer.addPass(gtao)
   composer.addPass(new OutputPass())
 }
 
 // ------------------------------------------------------------------ controls
 const controls = new OrbitControls(camera, canvas)
+controls.addEventListener('change', () => { dirty = true })
 controls.enableDamping = true
 controls.dampingFactor = 0.08
 controls.maxPolarAngle = Math.PI * 0.49
@@ -130,13 +135,46 @@ loader.load('apartment.glb', gltf => {
     }
     if (o.material.emissive && o.material.emissiveIntensity > 0) o.material.toneMapped = false
   })
+  mergeStatic(model)
   scene.add(model)
   $('#loading').classList.add('done')
   applyCutaway(true)
+  requestShadows()
 }, ev => {
   const p = ev.total ? Math.round(ev.loaded / ev.total * 100) : Math.min(99, Math.round(ev.loaded / 3.1e6 * 100))
   $('#loadingText').textContent = `Opening the apartment · ${p}%`
 }, err => { $('#loadingText').textContent = 'Could not load the model'; console.error(err) })
+
+// Merge everything that never changes visibility (furniture, lights, slab, floors) into one mesh per material.
+// ~500 draw calls become ~40, which is what makes orbiting smooth on integrated GPUs and phones.
+function mergeStatic(root) {
+  const groups = new Map()
+  const drop = []
+  root.traverse(o => {
+    if (!o.isMesh) return
+    const p = o.userData.part
+    if (p === 'wall' || p === 'frame' || p === 'glass' || p === 'ceiling') return   // toggled by the cutaway: keep separate
+    o.updateWorldMatrix(true, false)
+    const g = o.geometry.clone().applyMatrix4(o.matrixWorld)
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k)
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2))
+    const key = o.material.uuid
+    if (!groups.has(key)) groups.set(key, { material: o.material, geos: [], cast: false })
+    const grp = groups.get(key)
+    grp.geos.push(g); grp.cast = grp.cast || o.castShadow
+    drop.push(o)
+  })
+  for (const o of drop) o.parent.remove(o)
+  for (const { material, geos, cast } of groups.values()) {
+    const merged = mergeGeometries(geos, false)
+    if (!merged) continue
+    const m = new THREE.Mesh(merged, material)
+    m.castShadow = cast; m.receiveShadow = true
+    m.userData.part = 'merged'
+    root.add(m)
+    for (const g of geos) g.dispose()
+  }
+}
 
 // ------------------------------------------------------------------ cutaway
 const state = { cutaway: true, ceiling: false, mode: 'orbit', view: 0 }
@@ -159,8 +197,10 @@ function applyCutaway(force = false) {
   if (changed) {
     for (const w of parts.walls) w.mesh.visible = !hidden.has(w.side)
     lastHidden.clear(); for (const s of hidden) lastHidden.add(s)
+    requestShadows()
   }
   const showCeil = state.mode === 'walk' || state.ceiling || !state.cutaway
+  if (parts.ceiling.length && parts.ceiling[0].visible !== showCeil) requestShadows()
   for (const c of parts.ceiling) c.visible = showCeil
 }
 
@@ -179,6 +219,7 @@ const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
 function setView(i) {
   state.view = i
+  dirty = true
   const v = VIEWS[i]
   document.querySelectorAll('#views button').forEach((b, j) => b.classList.toggle('on', j === i))
   $('#introTitle').textContent = v.title
@@ -193,6 +234,7 @@ const walk = { keys: {}, yaw: 0, pitch: -0.05, dragging: false, last: null }
 const FOV_ORBIT = 30, FOV_WALK = 75   // the isometric views want a long lens; a person sees ~75° across
 let fovTarget = FOV_ORBIT
 function setMode(m) {
+  dirty = true
   const wasWalk = state.mode === 'walk'
   state.mode = m
   document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === m))
@@ -221,7 +263,7 @@ function setMode(m) {
   }
   applyCutaway(true)
 }
-addEventListener('keydown', e => { walk.keys[e.code] = true })
+addEventListener('keydown', e => { walk.keys[e.code] = true; dirty = true })
 addEventListener('keyup', e => { walk.keys[e.code] = false })
 canvas.addEventListener('pointerdown', e => { if (state.mode === 'walk') { walk.dragging = true; walk.last = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId) } })
 canvas.addEventListener('pointermove', e => {
@@ -229,6 +271,7 @@ canvas.addEventListener('pointermove', e => {
   walk.yaw -= (e.clientX - walk.last[0]) * 0.0045
   walk.pitch = THREE.MathUtils.clamp(walk.pitch - (e.clientY - walk.last[1]) * 0.0045, -1.3, 1.3)
   walk.last = [e.clientX, e.clientY]
+  dirty = true
 })
 canvas.addEventListener('pointerup', () => { walk.dragging = false })
 canvas.addEventListener('pointercancel', () => { walk.dragging = false })
@@ -280,7 +323,7 @@ resize(); camera.position.copy(framed(VIEWS[0].pos, VIEWS[0].target)); controls.
 
 $('#tgCut').addEventListener('change', e => { state.cutaway = e.target.checked; applyCutaway(true) })
 $('#tgCeil').addEventListener('change', e => { state.ceiling = e.target.checked; applyCutaway(true) })
-$('#tgSpin').addEventListener('change', e => { controls.autoRotate = e.target.checked })
+$('#tgSpin').addEventListener('change', e => { controls.autoRotate = e.target.checked; dirty = true })
 document.querySelectorAll('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
@@ -290,6 +333,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click
 
 const spherical = new THREE.Spherical()
 function nudge(dTheta = 0, dPhi = 0, zoom = 1) {
+  dirty = true
   if (state.mode === 'walk') { walk.yaw += dTheta; walk.pitch = THREE.MathUtils.clamp(walk.pitch + dPhi, -1.3, 1.3); return }
   tween = null
   const off = camera.position.clone().sub(controls.target)
@@ -391,6 +435,7 @@ function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight
   if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
     renderer.setSize(w, h, false)
+    dirty = true
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     if (composer) { composer.setSize(w, h); gtao.setSize(w, h) }
@@ -412,9 +457,15 @@ renderer.setAnimationLoop(now => {
   if (Math.abs(camera.fov - fovTarget) > 0.05) {   // ease the lens change so entering Walk doesn't snap
     camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * 8)
     camera.updateProjectionMatrix()
+    dirty = true
   }
-  if (state.mode === 'walk') stepWalk(dt); else { stepOrbitKeys(dt); controls.update() }
+  const keysHeld = Object.values(walk.keys).some(Boolean)
+  if (state.mode === 'walk') { if (keysHeld || walk.dragging) dirty = true; stepWalk(dt) }
+  else { stepOrbitKeys(dt); if (controls.update()) dirty = true }   // update() returns true while damping still moves the camera
+  if (tween || controls.autoRotate) dirty = true
   applyCutaway()
+  if (!dirty) return   // nothing changed: skip the frame entirely (idle costs nothing)
+  dirty = false
   drawMinimap()
   if (composer) composer.render(); else renderer.render(scene, camera)
 })

@@ -62,6 +62,15 @@ def stretched_noise(size, px, py, seed=0, octaves=4):
     return out / total
 
 
+def warp(size, field_fn, amount=0.08, seed=100):
+    """domain-warp a periodic field: sample it at coordinates displaced by two noise fields (stays periodic)."""
+    ys, xs = np.mgrid[0:size, 0:size].astype(np.float32)
+    dx = (value_noise(size, 4, seed, 3) - 0.5) * amount * size
+    dy = (value_noise(size, 4, seed + 1, 3) - 0.5) * amount * size
+    xi = np.mod(np.rint(xs + dx), size).astype(int); yi = np.mod(np.rint(ys + dy), size).astype(int)
+    return field_fn()[yi, xi]
+
+
 def normal_from_height(h, strength=2.0):
     """tangent-space normal map from a periodic height field (0..1)."""
     dx = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) * strength
@@ -92,66 +101,88 @@ def _save(name, rgb, fmt):
 
 
 # ----------------------------------------------------------------------------- generators
+def _wood_grain(size, seed, rings=26, wander=0.05, streak=0.4):
+    """periodic wood: ring stripes along x, warped so they wander like real cathedral grain"""
+    ys = np.linspace(0, 1, size, endpoint=False)[:, None]
+    base = value_noise(size, 2, seed, 2)
+    field = lambda: (np.sin((ys + base * 0.35) * 2 * np.pi * rings) * 0.5 + 0.5).astype(np.float32) * np.ones((size, size), np.float32)
+    r = warp(size, field, amount=wander, seed=seed + 40)
+    r = r ** 2.2                                            # thin dark late-wood lines
+    fine = stretched_noise(size, 3, 64, seed + 3, 3)         # fibre streaks along the plank
+    fine2 = stretched_noise(size, 2, 200, seed + 9, 2)       # very fine fibres
+    return np.clip(0.35 + r * 0.45 + (fine - 0.5) * streak + (fine2 - 0.5) * 0.15, 0, 1)
+
+
 def wood_planks(size, base, dark, plank_w=0.16, plank_len=1.0, tile=2.0, seed=1, grain=0.35):
-    """staggered planks with grain; tile is the physical size covered by the image."""
+    """staggered planks with wandering ring grain; tile is the physical size covered by the image."""
     rows = int(round(tile / plank_w)); cols = int(round(tile / plank_len))
     ys = np.linspace(0, rows, size, endpoint=False); xs = np.linspace(0, cols, size, endpoint=False)
     row = np.floor(ys).astype(int)[:, None]
     offset = (row * 0.5) % 1.0                       # stagger every other row by half a plank
     col = np.floor(xs[None, :] + offset).astype(int) % cols
     plank_id = (row * 7919 + col * 104729) % 977
-    per = np.random.default_rng(seed).random(977).astype(np.float32)[plank_id]      # per-plank tone
-    g = stretched_noise(size, 2, 24, seed, 5)                                       # long grain along x
-    g2 = stretched_noise(size, 4, 48, seed + 3, 3)
-    t = np.clip(0.55 + (per - 0.5) * 0.35 + (g - 0.5) * grain + (g2 - 0.5) * 0.12, 0, 1)
+    rng = np.random.default_rng(seed)
+    per = rng.random(977).astype(np.float32)[plank_id]                              # per-plank tone
+    hue = rng.random(977).astype(np.float32)[plank_id]                              # per-plank warmth
+    g = _wood_grain(size, seed)
+    # each plank samples the grain at its own vertical offset so neighbours never repeat
+    shift = (rng.random(977) * size).astype(int)[plank_id]
+    g = np.take_along_axis(np.broadcast_to(g, (size, size)), (np.arange(size)[:, None] + shift) % size, axis=0)
+    t = np.clip(0.5 + (per - 0.5) * 0.4 + (g - 0.5) * grain * 1.6, 0, 1)
     fy = ys[:, None] - np.floor(ys[:, None]); fx = (xs[None, :] + offset) - np.floor(xs[None, :] + offset)
-    seam = np.minimum(np.minimum(fy, 1 - fy) * rows * tile / 0.006, np.minimum(fx, 1 - fx) * cols * tile / 0.006)
+    seam = np.minimum(np.minimum(fy, 1 - fy) * rows * tile / 0.005, np.minimum(fx, 1 - fx) * cols * tile / 0.005)
     seam = np.clip(seam, 0, 1)                                                      # 0 at joints
+    warm = np.array([1.06, 1.0, 0.92], np.float32)
     color = base[None, None, :] * t[..., None] + dark[None, None, :] * (1 - t[..., None])
-    color = color * (0.55 + 0.45 * seam[..., None])
-    rough = np.clip(0.42 + (1 - t) * 0.25 + (1 - seam) * 0.4 + (g2 - 0.5) * 0.1, 0, 1)
-    height = np.clip(t * 0.15 + seam * 0.85, 0, 1)
-    return color, rough, normal_from_height(height, 1.6), tile
+    color = color * (1 + (hue[..., None] - 0.5) * 0.12 * (warm[None, None, :] - 1) * 8)
+    color = color * (0.5 + 0.5 * seam[..., None])
+    rough = np.clip(0.38 + (1 - t) * 0.3 + (1 - seam) * 0.4, 0, 1)
+    height = np.clip(t * 0.2 + seam * 0.8, 0, 1)
+    return color, rough, normal_from_height(height, 1.8), tile
 
 
 def plaster(size, base, tile=2.0, seed=5, amount=0.05):
-    n = value_noise(size, 8, seed, 5); n2 = value_noise(size, 64, seed + 1, 2)
-    t = 1 + (n - 0.5) * amount * 2 + (n2 - 0.5) * amount
+    n = value_noise(size, 6, seed, 5); n2 = value_noise(size, 96, seed + 1, 2)
+    trowel = warp(size, lambda: stretched_noise(size, 3, 10, seed + 5, 3), 0.06, seed + 9)   # faint diagonal sweeps
+    t = 1 + (n - 0.5) * amount * 2 + (n2 - 0.5) * amount + (trowel - 0.5) * amount * 0.8
     color = base[None, None, :] * t[..., None]
-    rough = np.clip(0.82 + (n2 - 0.5) * 0.15, 0, 1)
-    return color, rough, normal_from_height(n2 * 0.4 + n * 0.6, 0.35), tile
+    rough = np.clip(0.8 + (n2 - 0.5) * 0.2 + (trowel - 0.5) * 0.1, 0, 1)
+    return color, rough, normal_from_height(n2 * 0.35 + trowel * 0.4 + n * 0.25, 0.5), tile
 
 
 def concrete(size, base, tile=2.0, seed=9):
     n = value_noise(size, 6, seed, 6, 0.55); sp = value_noise(size, 128, seed + 2, 1)
-    holes = (sp > 0.93).astype(np.float32)
-    t = 1 + (n - 0.5) * 0.35 - holes * 0.25
+    stains = warp(size, lambda: value_noise(size, 3, seed + 7, 4), 0.1, seed + 8)
+    holes = np.clip((sp - 0.9) * 12, 0, 1)
+    t = 1 + (n - 0.5) * 0.3 + (stains - 0.5) * 0.22 - holes * 0.3
     color = base[None, None, :] * t[..., None]
-    rough = np.clip(0.85 + (n - 0.5) * 0.2 + holes * 0.1, 0, 1)
-    return color, rough, normal_from_height(np.clip(n - holes * 0.6, 0, 1), 1.0), tile
+    rough = np.clip(0.82 + (n - 0.5) * 0.2 + holes * 0.15 + (stains - 0.5) * 0.1, 0, 1)
+    return color, rough, normal_from_height(np.clip(n * 0.6 + stains * 0.4 - holes * 0.6, 0, 1), 1.2), tile
 
 
 def fabric(size, base, tile=0.5, seed=3, weave=180, contrast=0.12):
     xs = np.linspace(0, 2 * math.pi * weave, size, endpoint=False)
-    w = (np.sin(xs)[None, :] * np.sin(xs)[:, None]) * 0.5 + 0.5
-    n = value_noise(size, 16, seed, 4)
-    t = 1 + (w - 0.5) * contrast + (n - 0.5) * 0.15
+    w = (np.sin(xs)[None, :] * np.sin(xs)[:, None]) * 0.5 + 0.5           # fine weave
+    w2 = (np.sin(xs / 3)[None, :] * np.sin(xs / 3)[:, None]) * 0.5 + 0.5  # coarser basket structure
+    n = value_noise(size, 16, seed, 4); fuzz = value_noise(size, 128, seed + 2, 1)
+    t = 1 + (w - 0.5) * contrast + (w2 - 0.5) * contrast * 0.6 + (n - 0.5) * 0.14 + (fuzz - 0.5) * 0.06
     color = base[None, None, :] * t[..., None]
-    rough = np.clip(0.9 + (w - 0.5) * 0.1, 0, 1)
-    return color, rough, normal_from_height(w * 0.6 + n * 0.4, 0.8), tile
+    rough = np.clip(0.88 + (w - 0.5) * 0.1 + (fuzz - 0.5) * 0.05, 0, 1)
+    return color, rough, normal_from_height(w * 0.5 + w2 * 0.3 + n * 0.2, 1.0), tile
 
 
 def leather(size, base, tile=0.6, seed=4):
-    n = value_noise(size, 48, seed, 3, 0.6); n2 = value_noise(size, 6, seed + 1, 3)
-    cells = np.abs(n - 0.5) * 2
-    t = 1 + (cells - 0.5) * 0.1 + (n2 - 0.5) * 0.12
+    n = value_noise(size, 64, seed, 2, 0.5); n3 = value_noise(size, 24, seed + 4, 2, 0.5); n2 = value_noise(size, 5, seed + 1, 3)
+    cells = np.clip((np.abs(n - 0.5) * 2) * 0.6 + (np.abs(n3 - 0.5) * 2) * 0.4, 0, 1)   # pebble grain at two scales
+    creases = np.clip(1 - np.abs(warp(size, lambda: stretched_noise(size, 2, 8, seed + 6, 3), 0.08, seed + 7) - 0.5) * 10, 0, 1)
+    t = 1 + (cells - 0.5) * 0.12 + (n2 - 0.5) * 0.14 + creases * 0.05
     color = base[None, None, :] * t[..., None]
-    rough = np.clip(0.45 + cells * 0.25, 0, 1)
-    return color, rough, normal_from_height(1 - cells, 0.9), tile
+    rough = np.clip(0.4 + cells * 0.28 + creases * 0.1, 0, 1)
+    return color, rough, normal_from_height(1 - cells * 0.8 - creases * 0.2, 1.1), tile
 
 
 def quartz(size, base, tile=1.5, seed=11):
-    v = stretched_noise(size, 3, 12, seed, 5)
+    v = warp(size, lambda: stretched_noise(size, 3, 12, seed, 5), 0.12, seed + 3)
     veins = np.clip(1 - np.abs(v - 0.5) * 9, 0, 1) ** 2
     n = value_noise(size, 32, seed + 2, 2)
     t = 1 - veins * 0.18 - (n - 0.5) * 0.05
@@ -198,8 +229,9 @@ def brushed(size, base, tile=0.5, seed=19):
 
 
 def wood_solid(size, base, dark, tile=1.2, seed=23):
-    g = stretched_noise(size, 2, 20, seed, 5); g2 = stretched_noise(size, 6, 40, seed + 1, 3)
-    t = np.clip(0.6 + (g - 0.5) * 0.5 + (g2 - 0.5) * 0.15, 0, 1)
+    g = _wood_grain(size, seed, rings=40, wander=0.02, streak=0.55)
+    g2 = stretched_noise(size, 6, 40, seed + 1, 3)
+    t = np.clip(0.5 + (g - 0.5) * 0.55 + (g2 - 0.5) * 0.15, 0, 1)
     color = base[None, None, :] * t[..., None] + dark[None, None, :] * (1 - t[..., None])
     rough = np.clip(0.4 + (1 - t) * 0.2, 0, 1)
     return color, rough, normal_from_height(t, 0.5), tile
