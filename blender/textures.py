@@ -101,7 +101,7 @@ def _save(name, rgb, fmt):
 
 
 # ----------------------------------------------------------------------------- generators
-def _wood_grain(size, seed, rings=26, wander=0.05, streak=0.4):
+def _wood_grain(size, seed, rings=26, wander=0.05, streak=0.4, ring_weight=0.22):
     """periodic wood: ring stripes along x, warped so they wander like real cathedral grain"""
     ys = np.linspace(0, 1, size, endpoint=False)[:, None]
     base = value_noise(size, 2, seed, 2)
@@ -110,7 +110,7 @@ def _wood_grain(size, seed, rings=26, wander=0.05, streak=0.4):
     r = r ** 2.2                                            # thin dark late-wood lines
     fine = stretched_noise(size, 3, 64, seed + 3, 3)         # fibre streaks along the plank
     fine2 = stretched_noise(size, 2, 200, seed + 9, 2)       # very fine fibres
-    return np.clip(0.35 + r * 0.45 + (fine - 0.5) * streak + (fine2 - 0.5) * 0.15, 0, 1)
+    return np.clip(0.5 - ring_weight / 2 + r * ring_weight + (fine - 0.5) * streak + (fine2 - 0.5) * 0.18, 0, 1)
 
 
 def wood_planks(size, base, dark, plank_w=0.16, plank_len=1.0, tile=2.0, seed=1, grain=0.35):
@@ -124,7 +124,7 @@ def wood_planks(size, base, dark, plank_w=0.16, plank_len=1.0, tile=2.0, seed=1,
     rng = np.random.default_rng(seed)
     per = rng.random(977).astype(np.float32)[plank_id]                              # per-plank tone
     hue = rng.random(977).astype(np.float32)[plank_id]                              # per-plank warmth
-    g = _wood_grain(size, seed)
+    g = _wood_grain(size, seed, rings=30, wander=0.04, streak=0.45, ring_weight=0.2)
     # each plank samples the grain at its own vertical offset so neighbours never repeat
     shift = (rng.random(977) * size).astype(int)[plank_id]
     g = np.take_along_axis(np.broadcast_to(g, (size, size)), (np.arange(size)[:, None] + shift) % size, axis=0)
@@ -229,7 +229,7 @@ def brushed(size, base, tile=0.5, seed=19):
 
 
 def wood_solid(size, base, dark, tile=1.2, seed=23):
-    g = _wood_grain(size, seed, rings=40, wander=0.02, streak=0.55)
+    g = _wood_grain(size, seed, rings=40, wander=0.02, streak=0.6, ring_weight=0.16)
     g2 = stretched_noise(size, 6, 40, seed + 1, 3)
     t = np.clip(0.5 + (g - 0.5) * 0.55 + (g2 - 0.5) * 0.15, 0, 1)
     color = base[None, None, :] * t[..., None] + dark[None, None, :] * (1 - t[..., None])

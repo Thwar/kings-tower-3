@@ -521,7 +521,7 @@ box("Backsplash", (6.1, 1.28, 2.71), (3.4, 0.7, 0.02), M["quartz"], bevel=0, **K
 box("KitchenUpper", (6.1, 2.1, 2.55), (3.4, 0.7, 0.35), M["oak"], bevel=0.005, **K)
 for i, x in enumerate([4.9, 5.5, 6.1, 6.7, 7.3]):
     box(f"UpperGap_{i}", (x, 2.1, 2.373), (0.004, 0.66, 0.01), M["frame"], bevel=0, **K)
-box("UpperLED", (6.1, 1.745, 2.5), (3.3, 0.01, 0.2), M["downlight"], bevel=0, part="light", room="kitchen")
+box("UpperLED", (6.1, 1.732, 2.5), (3.3, 0.01, 0.2), M["downlight"], bevel=0, part="light", room="kitchen")
 box("Sink", (5.2, 0.905, 2.4), (0.55, 0.02, 0.4), M["steel"], bevel=0.005, **K)
 box("Tap", (5.2, 1.06, 2.6), (0.018, 0.32, 0.018), M["frame"], bevel=0, **K)
 box("TapSpout", (5.13, 1.21, 2.6), (0.16, 0.018, 0.018), M["frame"], bevel=0, **K)
