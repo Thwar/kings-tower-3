@@ -184,6 +184,7 @@ loader.load('apartment.glb', gltf => {
     renderer.shadowMap.enabled = false
     scene.environmentIntensity = +(q.get('env') ?? 0.18)
   } else mergeStatic(model)
+  applyScannedTextures(model)
   scene.add(model)
   $('#loading').classList.add('done')
   applyCutaway(true)
@@ -222,6 +223,46 @@ function mergeStatic(root) {
     root.add(m)
     for (const g of geos) g.dispose()
   }
+}
+
+// ------------------------------------------------------------------ photo-scanned textures (optional)
+// The deploy fetches ambientCG sets into textures/<key>/ (see scripts/fetch-textures.mjs). When the manifest is
+// present we swap them in over the procedural maps baked into the GLB. Model UVs are in units of each set's
+// procedural tile (metres), so repeat = tile / physical size keeps world-space scale right. Tints keep the
+// interior palette (charcoal fabric, walnut) on top of neutral scans.
+const PROC_TILE = { oak_floor: 2, oak: 1.2, walnut: 1.2, plaster: 2, plaster_ext: 2, concrete: 2, charcoal: 0.5, linen: 0.5, wool_rug: 0.8, leather: 0.6, leather_tan: 0.6, quartz: 1.5, tile: 1.2, paving: 2.4, brushed: 0.5, matte_black: 0.4 }
+const TINT = { charcoal: '#4a4c4e', walnut: '#6b4a34', wool_rug: '#b8b2a8', wool_rug_dark: '#5b5a58', leather: '#2c2927', leather_tan: '#8a5a3a', linen: '#efece6', oak: '#d9bd92' }
+const SCAN_FOR = { wool_rug_dark: 'wool_rug', leather_tan: 'leather', plaster_ext: 'plaster', art_print: null, matte_black: null }
+function applyScannedTextures(root) {
+  fetch('textures/manifest.json').then(r => r.ok ? r.json() : null).then(manifest => {
+    if (!manifest) return
+    const cache = {}
+    const load = (key, file) => {
+      const id = key + '/' + file
+      if (!cache[id]) {
+        const t = texLoader.load(`textures/${key}/${file}.jpg`, () => { dirty = true })
+        t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.flipY = false
+        if (file === 'color') t.colorSpace = THREE.SRGBColorSpace
+        cache[id] = t
+      }
+      return cache[id]
+    }
+    root.traverse(o => {
+      if (!o.isMesh || !o.material || o.material.transparent) return
+      const base = o.material.name.split('__')[0]
+      const key = base in SCAN_FOR ? SCAN_FOR[base] : base
+      if (!key || !manifest[key]) return
+      const tile = PROC_TILE[base] ?? PROC_TILE[key] ?? 1
+      const rep = tile / (manifest[key].size || 1)
+      const m = o.material
+      m.map = load(key, 'color'); m.normalMap = load(key, 'normal'); m.roughnessMap = load(key, 'roughness')
+      for (const t of [m.map, m.normalMap, m.roughnessMap]) t.repeat.set(rep, rep)
+      m.roughness = 1; m.normalScale.set(0.8, 0.8)
+      m.color.set(TINT[base] || '#ffffff')
+      m.needsUpdate = true
+    })
+    dirty = true
+  }).catch(() => {})
 }
 
 // ------------------------------------------------------------------ cutaway

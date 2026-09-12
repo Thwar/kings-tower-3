@@ -18,8 +18,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/fetch-textures.mjs     # photo-scanned PBR sets (ambientCG, CC0) → site/textures/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site        # static viewer: model, lightmaps, renders, vendored three.js — nothing to build
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4

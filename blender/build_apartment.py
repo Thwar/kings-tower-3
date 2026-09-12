@@ -369,23 +369,32 @@ def rnd():
 
 
 def plant(name, x, z, s=1.0, pot="black", room="living", leaves=34, kind="ficus"):
-    """ficus-like: trunk, a few branches, flattened leaf ellipsoids in two greens"""
+    """fiddle-leaf-fig style: trunk, a few branches, and many small smooth leaves along them"""
     if pot == "black":
         cyl(f"{name}_pot", (x, 0.17 * s, z), 0.17 * s, 0.34 * s, M["pot_black"], r2=0.13 * s, bevel=0.01, part="furniture", room=room)
     elif pot == "clay":
         cyl(f"{name}_pot", (x, 0.17 * s, z), 0.18 * s, 0.34 * s, M["pot_clay"], r2=0.14 * s, bevel=0.01, part="furniture", room=room)
     top = 0.34 * s if pot else 0.0
-    cyl(f"{name}_trunk", (x, top + 0.45 * s, z), 0.02 * s, 0.9 * s, M["bark"], r2=0.035 * s, verts=10, part="furniture", room=room)
-    for b in range(4):
-        a = b * 1.6 + rnd()
-        bx, bz = math.cos(a) * 0.12 * s, math.sin(a) * 0.12 * s
-        cyl(f"{name}_br{b}", (x + bx, top + (0.75 + b * 0.1) * s, z + bz), 0.012 * s, 0.35 * s, M["bark"], verts=8,
-            rot=(math.radians(35), 0, -a), part="furniture", room=room)
-    for i in range(leaves):
-        a, r = rnd() * math.pi * 2, (0.12 + rnd() * 0.3) * s
-        y = top + (0.75 + rnd() * 0.55) * s
-        sphere(f"{name}_leaf{i}", (x + math.cos(a) * r, y, z + math.sin(a) * r), 0.075 * s,
-               M["leaf"] if i % 3 else M["leaf2"], scale=(1.3, 0.35, 0.8), rot=(rnd() * 0.8, rnd() * 0.5, a), sub=1,
+    cyl(f"{name}_trunk", (x, top + 0.45 * s, z), 0.018 * s, 0.9 * s, M["bark"], r2=0.03 * s, verts=10, part="furniture", room=room)
+    branches = []
+    for b in range(5):
+        a = b * 1.3 + rnd() * 0.6
+        by = top + (0.55 + b * 0.12) * s
+        bl = (0.28 + rnd() * 0.16) * s
+        tilt = math.radians(28 + rnd() * 20)
+        cyl(f"{name}_br{b}", (x + math.cos(a) * bl * 0.45, by + bl * 0.4, z + math.sin(a) * bl * 0.45), 0.008 * s, bl, M["bark"], verts=6,
+            rot=(tilt, 0, -a), part="furniture", room=room)
+        branches.append((a, by, bl))
+    n = leaves * 3
+    for i in range(n):
+        a, by, bl = branches[i % len(branches)]
+        t = 0.2 + rnd() * 0.9                               # position along the branch
+        r = bl * t * 0.9
+        spread = (rnd() - 0.5) * 0.22 * s                   # leaves fan out around the branch
+        ang = a + (rnd() - 0.5) * 2.2
+        lx, ly, lz = x + math.cos(a) * r + math.cos(ang) * abs(spread), by + bl * t * 0.8 + (rnd() - 0.5) * 0.1 * s, z + math.sin(a) * r + math.sin(ang) * abs(spread)
+        sphere(f"{name}_leaf{i}", (lx, ly, lz), 0.065 * s,
+               M["leaf"] if i % 3 else M["leaf2"], scale=(1.0, 0.2, 1.6), rot=(0.4 + (rnd() - 0.5) * 0.9, (rnd() - 0.5) * 0.7, -ang), sub=2,
                part="furniture", room=room)
 
 
