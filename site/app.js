@@ -190,6 +190,8 @@ function setView(i) {
 
 // ------------------------------------------------------------------ walk mode (first person)
 const walk = { keys: {}, yaw: 0, pitch: -0.05, dragging: false, last: null }
+const FOV_ORBIT = 30, FOV_WALK = 75   // the isometric views want a long lens; a person sees ~75° across
+let fovTarget = FOV_ORBIT
 function setMode(m) {
   const wasWalk = state.mode === 'walk'
   state.mode = m
@@ -199,13 +201,15 @@ function setMode(m) {
     const v = VIEWS[state.view]
     // each viewpoint has a standing spot on open floor and a heading into the room
     const [wx, wz, yaw] = v.walk
-    camera.position.set(wx, 1.55, wz)
+    camera.position.set(wx, 1.6, wz)
     walk.yaw = yaw
+    fovTarget = FOV_WALK
     walk.pitch = -0.08
     tween = null
     $('#hint').textContent = 'Drag to look · WASD / arrows to walk · Q/E for height'
   } else {
     controls.enabled = true
+    fovTarget = FOV_ORBIT
     controls.mouseButtons = m === 'pan' ? PAN_BTNS : ORBIT_BTNS
     controls.touches = m === 'pan' ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE } : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }
     if (wasWalk) {
@@ -237,7 +241,7 @@ function stepWalk(dt) {
   const sp = 2.0 * dt, sin = Math.sin(walk.yaw), cos = Math.cos(walk.yaw)
   camera.position.x += (-sin * f + cos * s) * sp
   camera.position.z += (-cos * f - sin * s) * sp
-  camera.position.y = THREE.MathUtils.clamp(camera.position.y + u * sp, 0.6, 2.3)
+  camera.position.y = THREE.MathUtils.clamp(camera.position.y + u * sp, 0.6, 2.35)
   camera.position.x = THREE.MathUtils.clamp(camera.position.x, BOUNDS.minX, BOUNDS.maxX)
   camera.position.z = THREE.MathUtils.clamp(camera.position.z, BOUNDS.minZ, BOUNDS.maxZ)
   camera.rotation.order = 'YXZ'
@@ -404,6 +408,10 @@ renderer.setAnimationLoop(now => {
     camera.position.lerpVectors(tween.p0, tween.p1, k)
     controls.target.lerpVectors(tween.t0, tween.t1, k)
     if (k >= 1) tween = null
+  }
+  if (Math.abs(camera.fov - fovTarget) > 0.05) {   // ease the lens change so entering Walk doesn't snap
+    camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * 8)
+    camera.updateProjectionMatrix()
   }
   if (state.mode === 'walk') stepWalk(dt); else { stepOrbitKeys(dt); controls.update() }
   applyCutaway()
