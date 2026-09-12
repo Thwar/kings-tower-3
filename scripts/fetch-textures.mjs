@@ -35,7 +35,8 @@ for (const [key, [id, size]] of Object.entries(SETS)) {
     writeFileSync(zip, Buffer.from(await r.arrayBuffer()))
     mkdirSync(dir, { recursive: true })
     execSync(`unzip -o -q "${zip}" -d "${dir}"`)
-    execSync(`cd "${dir}" && (mv *_Color.jpg color.jpg; mv *_NormalGL.jpg normal.jpg; mv *_Roughness.jpg roughness.jpg; rm -f *.jpg.* *.usd* *.png *.txt *.mtl *.obj 2>/dev/null; ls | grep -vE '^(color|normal|roughness)\\.jpg$' | xargs -r rm -f) ; rm -f "${zip}"`)
+    execSync(`cd "${dir}" && (mv *_Color.jpg color.jpg; mv *_NormalGL.jpg normal.jpg; mv *_Roughness.jpg roughness.jpg; ls | grep -vE '^(color|normal|roughness)\\.jpg$' | xargs -r rm -rf)`)
+    execSync(`rm -f "${zip}"`)   // absolute to the repo root, not the set folder
     manifest[key] = { size }
     console.log('ok', key, id)
   } catch (e) { console.log('failed', key, id, e.message) }
