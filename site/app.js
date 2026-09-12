@@ -8,6 +8,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { walls as PLAN_WALLS, rooms as PLAN_ROOMS, BOUNDS as PLAN, roomAt, T as WALL_T } from './plan.js'
+const q = new URLSearchParams(location.search)   // ?mode=walk · ?env= ?exp= ?lm= tune lighting · ?ao=1
 
 // ------------------------------------------------------------------ viewpoints
 // pos / target in metres, apartment space: x east, y up, z south (origin = NW corner of the living room)
@@ -28,6 +29,13 @@ const VIEWS = [
     pos: [17.0, 5.0, -2.5], target: [10.3, 0.8, 3.0], walk: [8.6, 2.6, -Math.PI / 2] },
 ]
 const CENTER = new THREE.Vector3(6.2, 1.3, 3.0)
+// walk-mode collision: every plan wall (except the heads above doorways) as an XZ box, thickness T
+const WALK_R = 0.22
+const WALL_BOXES = PLAN_WALLS.filter(w => w[4] !== 'head').map(([x1, z1, x2, z2]) => ({
+  minX: Math.min(x1, x2) - WALL_T / 2, maxX: Math.max(x1, x2) + WALL_T / 2, minZ: Math.min(z1, z2) - WALL_T / 2, maxZ: Math.max(z1, z2) + WALL_T / 2,
+}))
+const blocked = (x, z) => WALL_BOXES.some(b => x + WALK_R > b.minX && x - WALK_R < b.maxX && z + WALK_R > b.minZ && z - WALK_R < b.maxZ)
+const WALK_ONLY = q.get('mode') === 'walk'
 const BOUNDS = { minX: -0.3, maxX: 12.7, minZ: 0.1, maxZ: 5.85 }   // walk mode stays inside the apartment
 const $ = s => document.querySelector(s)
 
@@ -38,7 +46,6 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))   // retina at 2× is th
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.shadowMap.enabled = true
-const q = new URLSearchParams(location.search)   // ?env=0.3&sun=4.5&exp=1 tweak the light balance while tuning
 renderer.toneMappingExposure = +(q.get('exp') ?? 1.0)
 renderer.shadowMap.type = q.get('shadow') === 'basic' ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap
 renderer.shadowMap.autoUpdate = false   // static scene: the shadow map is re-rendered only when visibility changes (see requestShadows)
@@ -266,12 +273,12 @@ function setView(i) {
   $('#introTitle').textContent = v.title
   $('#introRoom').textContent = v.room
   $('#introArea').textContent = v.area
-  if (state.mode === 'walk') setMode('orbit')
+  if (state.mode === 'walk') { setMode('walk'); return }   // in the walkthrough, the room list teleports to each room's standing spot
   flyTo(v.pos, v.target)
 }
 
 // ------------------------------------------------------------------ walk mode (first person)
-const walk = { keys: {}, yaw: 0, pitch: -0.05, dragging: false, last: null }
+const walk = { keys: {}, yaw: 0, pitch: -0.05, dragging: false, last: null, stick: { x: 0, y: 0 } }
 const FOV_ORBIT = 30, FOV_WALK = 75   // the isometric views want a long lens; a person sees ~75° across
 let fovTarget = FOV_ORBIT
 function setMode(m) {
@@ -289,7 +296,7 @@ function setMode(m) {
     fovTarget = FOV_WALK
     walk.pitch = -0.08
     tween = null
-    $('#hint').textContent = 'Drag to look · WASD / arrows to walk · Q/E for height'
+    $('#hint').textContent = matchMedia('(pointer:coarse)').matches ? 'Left: joystick · right: drag to look' : 'Drag to look · WASD / arrows to walk · Q/E for height'
   } else {
     controls.enabled = true
     fovTarget = FOV_ORBIT
@@ -316,18 +323,61 @@ canvas.addEventListener('pointermove', e => {
 })
 canvas.addEventListener('pointerup', () => { walk.dragging = false })
 canvas.addEventListener('pointercancel', () => { walk.dragging = false })
+// phones in walk mode: left half of the screen is a joystick, right half drags to look
+const stickEl = $('#stick'), knobEl = $('#knob')
+let moveT = null, lookT = null, lookLast = null
+canvas.addEventListener('touchstart', e => {
+  if (state.mode !== 'walk') return
+  for (const t of e.changedTouches) {
+    if (t.clientX < innerWidth / 2 && moveT === null) {
+      moveT = { id: t.identifier, x: t.clientX, y: t.clientY }
+      const r = $('#stage').getBoundingClientRect()
+      stickEl.style.left = (t.clientX - r.left - 55) + 'px'; stickEl.style.top = (t.clientY - r.top - 55) + 'px'
+      knobEl.style.left = '32px'; knobEl.style.top = '32px'; stickEl.hidden = false
+    } else if (lookT === null) { lookT = t.identifier; lookLast = { x: t.clientX, y: t.clientY } }
+  }
+  e.preventDefault()
+}, { passive: false })
+canvas.addEventListener('touchmove', e => {
+  if (state.mode !== 'walk') return
+  for (const t of e.changedTouches) {
+    if (moveT && t.identifier === moveT.id) {
+      let dx = t.clientX - moveT.x, dy = t.clientY - moveT.y; const d = Math.hypot(dx, dy), max = 45
+      if (d > max) { dx *= max / d; dy *= max / d }
+      walk.stick = { x: dx / max, y: dy / max }
+      knobEl.style.left = (32 + dx) + 'px'; knobEl.style.top = (32 + dy) + 'px'
+    } else if (t.identifier === lookT) {
+      walk.yaw -= (t.clientX - lookLast.x) * 0.005
+      walk.pitch = THREE.MathUtils.clamp(walk.pitch - (t.clientY - lookLast.y) * 0.005, -1.3, 1.3)
+      lookLast = { x: t.clientX, y: t.clientY }
+    }
+  }
+  dirty = true
+  e.preventDefault()
+}, { passive: false })
+const touchEnd = e => {
+  for (const t of e.changedTouches) {
+    if (moveT && t.identifier === moveT.id) { moveT = null; walk.stick = { x: 0, y: 0 }; stickEl.hidden = true }
+    if (t.identifier === lookT) lookT = null
+  }
+}
+canvas.addEventListener('touchend', touchEnd); canvas.addEventListener('touchcancel', touchEnd)
 
 function stepWalk(dt) {
   const k = walk.keys
   let f = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0)
   let s = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0)
   const u = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0)
+  f -= walk.stick.y; s += walk.stick.x                       // phone joystick
+  const len = Math.hypot(f, s); if (len > 1) { f /= len; s /= len }
   const sp = 2.0 * dt, sin = Math.sin(walk.yaw), cos = Math.cos(walk.yaw)
-  camera.position.x += (-sin * f + cos * s) * sp
-  camera.position.z += (-cos * f - sin * s) * sp
-  camera.position.y = THREE.MathUtils.clamp(camera.position.y + u * sp, 0.6, 2.35)
-  camera.position.x = THREE.MathUtils.clamp(camera.position.x, BOUNDS.minX, BOUNDS.maxX)
-  camera.position.z = THREE.MathUtils.clamp(camera.position.z, BOUNDS.minZ, BOUNDS.maxZ)
+  const dx = (-sin * f + cos * s) * sp, dz = (-cos * f - sin * s) * sp
+  const p = camera.position
+  if (!blocked(p.x + dx, p.z)) p.x += dx      // slide along walls: test each axis separately
+  if (!blocked(p.x, p.z + dz)) p.z += dz
+  p.y = THREE.MathUtils.clamp(p.y + u * sp, 0.6, 2.35)
+  p.x = THREE.MathUtils.clamp(p.x, BOUNDS.minX, BOUNDS.maxX)
+  p.z = THREE.MathUtils.clamp(p.z, BOUNDS.minZ, BOUNDS.maxZ)
   camera.rotation.order = 'YXZ'
   camera.rotation.set(walk.pitch, walk.yaw, 0)
 }
@@ -360,7 +410,17 @@ VIEWS.forEach((v, i) => {
   viewsEl.appendChild(li)
 })
 setView(0)
-resize(); camera.position.copy(framed(VIEWS[0].pos, VIEWS[0].target)); controls.target.set(...VIEWS[0].target); tween = null
+if (WALK_ONLY) {
+  document.title = "King's Tower · Dept. D — walkthrough"
+  $('#navWalk').classList.add('on'); $('#nav3d').classList.remove('on')
+  $('#linkWalk').href = './'; $('#linkWalk').textContent = '→ Back to the cutaway model'
+  $('#footWalk').href = './'; $('#footWalk').textContent = 'Back to the model ↗'
+  document.querySelector('.chip').innerHTML = '<span class="dot"></span>WALKTHROUGH<i>FIRST PERSON</i>'
+  $('#tgCut').closest('label').hidden = true; $('#tgCeil').closest('label').hidden = true; $('#tgSpin').closest('label').hidden = true
+  setMode('walk')
+}
+resize()
+if (!WALK_ONLY) { camera.position.copy(framed(VIEWS[0].pos, VIEWS[0].target)); controls.target.set(...VIEWS[0].target); tween = null }
 
 $('#tgCut').addEventListener('change', e => { state.cutaway = e.target.checked; applyCutaway(true) })
 $('#tgCeil').addEventListener('change', e => { state.ceiling = e.target.checked; applyCutaway(true) })
@@ -472,7 +532,7 @@ map.addEventListener('click', e => {
   flyTo(t.clone().add(off).toArray(), t.toArray(), 900)
 })
 
-window.__app = { renderer, scene, camera, controls, sun, parts, state }   // debugging hook
+window.__app = { renderer, scene, camera, controls, sun, parts, state, walk, blocked }   // debugging hook
 
 // ------------------------------------------------------------------ resize + loop
 function resize() {
@@ -503,7 +563,7 @@ renderer.setAnimationLoop(now => {
     camera.updateProjectionMatrix()
     dirty = true
   }
-  const keysHeld = Object.values(walk.keys).some(Boolean)
+  const keysHeld = Object.values(walk.keys).some(Boolean) || walk.stick.x || walk.stick.y
   if (state.mode === 'walk') { if (keysHeld || walk.dragging) dirty = true; stepWalk(dt) }
   else { stepOrbitKeys(dt); if (controls.update()) dirty = true }   // update() returns true while damping still moves the camera
   if (tween || controls.autoRotate) dirty = true

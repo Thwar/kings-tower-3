@@ -1,8 +1,4 @@
 node_modules
 dist
-public/textures/*
-public/hdri/*
-!public/textures/.gitkeep
-!public/hdri/.gitkeep
-blender/apartment.blend1
 blender/tex/
+blender/apartment.blend1

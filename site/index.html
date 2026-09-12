@@ -23,8 +23,8 @@
       <b>KING'S TOWER</b><span>/ DEPT. D</span>
     </a>
     <nav class="switch" aria-label="Perspective">
-      <a href="walk/"><span class="ico">⇢</span>Walkthrough</a>
-      <a class="on" href="./" aria-current="page"><span class="ico">⌂</span>Apartment 3D</a>
+      <a id="navWalk" href="./?mode=walk"><span class="ico">⇢</span>Walkthrough</a>
+      <a id="nav3d" class="on" href="./"><span class="ico">⌂</span>Apartment 3D</a>
     </nav>
     <a class="download" href="apartment.glb" download="kings-tower-dept-d.glb">
       <span class="ico">⤓</span>Download 3D model
@@ -45,6 +45,7 @@
       <div class="mapRoom"><span id="mapRoom">Whole apartment</span><i>2D plan</i></div>
     </div>
 
+    <div class="stick" id="stick" hidden><div class="knob" id="knob"></div></div>
     <div class="loading" id="loading"><span class="dot"></span><span id="loadingText">Opening the apartment · 0%</span></div>
 
     <div class="corner">
@@ -92,7 +93,7 @@
         <div><b>2.6</b><small>m</small><span>Ceiling height</span></div>
       </div>
       <p class="note">Modelled in Blender from the developer's floor plan. Furniture and smaller dimensions are approximate.</p>
-      <a class="link" href="walk/">→ Take the first-person walkthrough</a>
+      <a class="link" id="linkWalk" href="./?mode=walk">→ Take the first-person walkthrough</a>
     </section>
 
     <section id="tabRenders" hidden>
@@ -103,7 +104,7 @@
 
   <footer class="foot">
     <span>ONE APARTMENT / TWO PERSPECTIVES</span>
-    <a href="walk/">Take the walkthrough ↗</a>
+    <a id="footWalk" href="./?mode=walk">Take the walkthrough ↗</a>
   </footer>
 
   <div class="lightbox" id="lightbox" hidden><img alt="" id="lightboxImg" /><button id="lightboxClose" aria-label="Close">✕</button><div class="cap" id="lightboxCap"></div></div>

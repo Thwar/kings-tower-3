@@ -11,27 +11,15 @@ concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run assets        # textures + HDRI for the walkthrough, downloaded on the runner
-      - run: npm run build         # walkthrough → dist/walk
-      - run: cp -R site/. dist/    # Blender-model viewer (+ apartment.glb, renders) → site root
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site        # static viewer: model, lightmaps, renders, vendored three.js — nothing to build
       - id: deployment
         uses: actions/deploy-pages@v4

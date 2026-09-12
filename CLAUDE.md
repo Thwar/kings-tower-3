@@ -1,19 +1,16 @@
 # Project notes for Claude Code
 
-Two apps, one Pages deploy (see README):
+One static site (`site/`) + one Blender pipeline (`blender/`). No npm, no bundler. Push to `main` → Pages deploys `site/`.
 
-- `site/` — **Apartment 3D** viewer at the site root. Plain HTML/CSS/JS + three.js vendored in `site/vendor` (no bundler, no CDN).
-  Viewpoints, copy and stats are in the `VIEWS` array at the top of `site/app.js`. Coordinates are metres, x east, y up, z south,
-  origin at the NW corner of the living room (same as the walkthrough's `plan.js`).
-- `blender/build_apartment.py` — the model. Change geometry/materials there, re-run it, commit the new `site/apartment.glb`.
-  Rules baked in: never let two boxes overlap with coincident faces (renders black in Cycles, z-fights in WebGL); wall segments
-  take `ext=(start, end)` flags and only extend into corners, never into openings.
-- `blender/textures.py` — procedural seamless PBR sets (numpy → jpg via bpy), cached in `blender/tex/`. Add a set there, then
-  `tmat(...)` it in the build script; UVs are box-projected automatically from the set's tile size.
-- `blender/bake_lightmaps.py` — the lighting bake. Any model change → run it (full quality ≈ 25 min CPU, `--fast` ≈ 5 min)
-  and commit `site/apartment.glb`, `site/lightmaps/` and `site/footprints.json` together. Lightmap textures must be sampled on
-  UV channel 1 in the viewer (`texture.channel = 1`) and are lighting-only (Cycles DIFFUSE bake without COLOR).
-- `blender/render_views.py` — Cycles renders for the "Blender renders" tab; `--fast` for previews. Commit the JPGs.
-- `src/` — the older first-person walkthrough (Vite + React Three Fiber), built to `dist/walk`. Keep `npm run build` green.
-
-Deploy: push to `main` → Actions builds the walkthrough, copies `site/` on top, publishes to Pages.
+- `site/app.js` — the viewer. `?mode=walk` boots it as the first-person walkthrough (same model, same lighting).
+  Viewpoints/copy in `VIEWS`; coordinates are metres, x east, y up, z south, origin at the NW corner of the living room.
+  Render-on-demand (`dirty` flag): anything that changes the picture must set `dirty = true`. Lightmaps are sampled on UV
+  channel 1 (`texture.channel = 1`). Static geometry arrives pre-merged from the bake; walls stay per side for the cutaway.
+- `site/plan.js` — 2D plan for the minimap and walk-mode wall collision. Keep it in sync with the walls in `build_apartment.py`.
+- `blender/build_apartment.py` — the model. Rules: never let two boxes overlap with coincident faces (black in Cycles,
+  z-fighting in WebGL); wall segments take `ext=(start, end)` and only extend into corners, never into openings.
+  Set `KT_SKIP_EXPORT=1` (the helper scripts do) so a rebuild never overwrites the baked `site/apartment.glb`.
+- `blender/textures.py` — procedural seamless PBR sets, cached in `blender/tex/` (gitignored).
+- `blender/bake_lightmaps.py` — the lighting bake (full ≈ 25 min CPU, `--fast` ≈ 5 min). After ANY model change run it and
+  commit `site/apartment.glb`, `site/lightmaps/` and `site/footprints.json` together.
+- `blender/render_views.py` — Cycles renders for the "Blender renders" tab (`--fast` for previews). Commit the JPGs.
