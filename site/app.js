@@ -213,7 +213,7 @@ function setMode(m) {
       const f = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(walk.pitch, walk.yaw, 0, 'YXZ'))
       controls.target.copy(camera.position).addScaledVector(f, 4)
     }
-    $('#hint').textContent = m === 'pan' ? 'Drag to pan · Right-drag to orbit · Scroll to zoom' : 'Drag to orbit · Right-drag to pan · Scroll to zoom'
+    $('#hint').textContent = m === 'pan' ? 'Drag to pan · Right-drag to orbit · WASD to move' : 'Drag to orbit · Right-drag to pan · WASD to move'
   }
   applyCutaway(true)
 }
@@ -242,6 +242,25 @@ function stepWalk(dt) {
   camera.position.z = THREE.MathUtils.clamp(camera.position.z, BOUNDS.minZ, BOUNDS.maxZ)
   camera.rotation.order = 'YXZ'
   camera.rotation.set(walk.pitch, walk.yaw, 0)
+}
+
+// keyboard in Orbit / Pan mode: W/S dolly along the view, A/D strafe, Q/E up/down. Camera and target move together.
+const _fwd = new THREE.Vector3(), _right = new THREE.Vector3(), _step = new THREE.Vector3()
+function stepOrbitKeys(dt) {
+  const k = walk.keys
+  const f = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0)
+  const r = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0)
+  const u = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0)
+  if (!f && !r && !u) return
+  tween = null
+  _fwd.copy(controls.target).sub(camera.position).setY(0).normalize()
+  _right.crossVectors(_fwd, camera.up).normalize()
+  const dist = camera.position.distanceTo(controls.target)
+  const speed = THREE.MathUtils.clamp(dist * 0.35, 1.2, 6) * dt      // faster when zoomed out
+  _step.set(0, 0, 0).addScaledVector(_fwd, f * speed).addScaledVector(_right, r * speed).addScaledVector(camera.up, u * speed)
+  camera.position.add(_step)
+  controls.target.add(_step)
+  controls.target.y = Math.max(0.1, controls.target.y)
 }
 
 // ------------------------------------------------------------------ UI wiring
@@ -386,7 +405,7 @@ renderer.setAnimationLoop(now => {
     controls.target.lerpVectors(tween.t0, tween.t1, k)
     if (k >= 1) tween = null
   }
-  if (state.mode === 'walk') stepWalk(dt); else controls.update()
+  if (state.mode === 'walk') stepWalk(dt); else { stepOrbitKeys(dt); controls.update() }
   applyCutaway()
   drawMinimap()
   if (composer) composer.render(); else renderer.render(scene, camera)
