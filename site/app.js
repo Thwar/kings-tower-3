@@ -2,24 +2,25 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { walls as PLAN_WALLS, rooms as PLAN_ROOMS, BOUNDS as PLAN, roomAt, T as WALL_T } from './plan.js'
 
 // ------------------------------------------------------------------ viewpoints
 // pos / target in metres, apartment space: x east, y up, z south (origin = NW corner of the living room)
 const VIEWS = [
   { key: 'whole',   name: 'Whole apartment', room: 'Whole apartment', area: '50.21 m² + 29.75 m² terrace', title: 'Room to live.',
-    pos: [-7.5, 11.5, 16.5], target: [6.2, 0.5, 3.0] },
+    pos: [-7.5, 11.5, 16.5], target: [6.2, 0.5, 3.0], walk: [1.4, 0.9, -Math.PI / 2 - 0.3] },
   { key: 'living',  name: 'Living',          room: 'Living',            area: '≈ 14 m²',  title: 'Where the day lands.',
-    pos: [-6.0, 5.0, 5.0], target: [2.8, 0.6, 2.2] },
+    pos: [-6.0, 5.0, 5.0], target: [2.8, 0.6, 2.2], walk: [3.0, 1.1, Math.PI / 2 + 0.35] },
   { key: 'kitchen', name: 'Kitchen & dining', room: 'Kitchen & dining', area: '≈ 12 m²',  title: 'Cook, eat, repeat.',
-    pos: [9.0, 6.0, -5.5], target: [5.3, 0.7, 1.7] },
+    pos: [9.0, 6.0, -5.5], target: [5.3, 0.7, 1.7], walk: [5.9, 0.75, Math.PI] },
   { key: 'bedroom', name: 'Bedroom',         room: 'Bedroom',           area: '≈ 12 m²',  title: 'Quiet corner.',
-    pos: [7.8, 6.8, 12.5], target: [5.4, 0.5, 4.5] },
+    pos: [7.8, 6.8, 12.5], target: [5.4, 0.5, 4.5], walk: [5.3, 3.25, Math.PI] },
   { key: 'bath',    name: 'Bathroom',        room: 'Bathroom',          area: '≈ 3.5 m²', title: 'Walk-in shower.',
-    pos: [-3.5, 4.0, 9.0], target: [1.0, 0.8, 5.0] },
+    pos: [-3.5, 4.0, 9.0], target: [1.0, 0.8, 5.0], walk: [1.55, 4.75, Math.PI * 0.75] },
   { key: 'service', name: 'Service area',    room: 'Service area',      area: '≈ 2 m²',   title: 'Laundry, tucked away.',
-    pos: [2.6, 5.0, 12.0], target: [2.55, 0.6, 5.3] },
+    pos: [2.6, 5.0, 12.0], target: [2.55, 0.6, 5.3], walk: [2.7, 4.7, Math.PI] },
   { key: 'terrace', name: 'Terrace',         room: 'Terrace',           area: '29.75 m²', title: 'The outdoor room.',
-    pos: [17.0, 5.0, -2.5], target: [10.3, 0.8, 3.0] },
+    pos: [17.0, 5.0, -2.5], target: [10.3, 0.8, 3.0], walk: [8.6, 2.6, -Math.PI / 2] },
 ]
 const CENTER = new THREE.Vector3(6.2, 1.3, 3.0)
 const BOUNDS = { minX: -0.3, maxX: 12.7, minZ: 0.1, maxZ: 5.85 }   // walk mode stays inside the apartment
@@ -79,6 +80,7 @@ const PAN_BTNS = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THRE
 
 // ------------------------------------------------------------------ model
 const parts = { walls: [], ceiling: [], glass: [] }   // walls: { mesh, side }
+const footprints = []   // [x, z, w, d] of furniture, for the minimap
 let model = null
 const loader = new GLTFLoader()
 loader.load('apartment.glb', gltf => {
@@ -100,6 +102,12 @@ loader.load('apartment.glb', gltf => {
     if (x.part === 'ceiling') parts.ceiling.push(o)
     if ((x.part === 'wall' || x.part === 'frame' || x.part === 'glass') && x.side && x.side !== 'I') parts.walls.push({ mesh: o, side: x.side })
     if (x.part === 'floor') o.material.envMapIntensity = 0.7
+    if (x.part === 'furniture' || x.part === 'light') {
+      // footprint for the minimap: XZ bounding box, skipping small bits (legs, handles, plant leaves)
+      const b = new THREE.Box3().setFromObject(o)
+      const w = b.max.x - b.min.x, d = b.max.z - b.min.z
+      if (w * d > 0.05 && b.min.y < 1.2) footprints.push([b.min.x, b.min.z, w, d])
+    }
     if (o.material.emissive && o.material.emissiveIntensity > 0) o.material.toneMapped = false
   })
   scene.add(model)
@@ -169,15 +177,10 @@ function setMode(m) {
   if (m === 'walk') {
     controls.enabled = false
     const v = VIEWS[state.view]
-    // stand inside the current room, look toward its target
-    const eye = new THREE.Vector3(v.target[0], 1.55, v.target[2])
-    const dir = new THREE.Vector3(v.pos[0], 0, v.pos[2]).sub(eye).setY(0)
-    eye.addScaledVector(dir.normalize(), Math.min(1.6, dir.length() * 0.3))
-    eye.x = THREE.MathUtils.clamp(eye.x, BOUNDS.minX + 0.3, BOUNDS.maxX - 0.3)
-    eye.z = THREE.MathUtils.clamp(eye.z, BOUNDS.minZ + 0.3, BOUNDS.maxZ - 0.3)
-    camera.position.copy(eye)
-    const look = new THREE.Vector3(v.target[0], 1.3, v.target[2]).sub(eye)
-    walk.yaw = Math.atan2(-look.x, -look.z)
+    // each viewpoint has a standing spot on open floor and a heading into the room
+    const [wx, wz, yaw] = v.walk
+    camera.position.set(wx, 1.55, wz)
+    walk.yaw = yaw
     walk.pitch = -0.08
     tween = null
     $('#hint').textContent = 'Drag to look · WASD / arrows to walk · Q/E for height'
@@ -277,6 +280,67 @@ $('#lightbox').addEventListener('click', e => { if (e.target === e.currentTarget
 const panel = $('#panel')
 $('#grip').addEventListener('click', () => panel.classList.toggle('tall'))
 
+// ------------------------------------------------------------------ minimap (2D plan)
+const map = $('#map'), mg = map.getContext('2d')
+const MS = map.width / (PLAN.x1 - PLAN.x0)
+const mx = x => (x - PLAN.x0) * MS, mz = z => (z - PLAN.z0) * MS
+const planLayer = document.createElement('canvas'); planLayer.width = map.width; planLayer.height = map.height
+let planDrawn = false
+function drawPlanLayer() {
+  const g = planLayer.getContext('2d')
+  g.clearRect(0, 0, map.width, map.height)
+  for (const r of PLAN_ROOMS) { const [a, b, c, d] = r.rect; g.fillStyle = r.fill; g.fillRect(mx(a), mz(b), (c - a) * MS, (d - b) * MS) }
+  g.fillStyle = 'rgba(255,255,255,.45)'
+  for (const [x, z, w, d] of footprints) g.fillRect(mx(x), mz(z), w * MS, d * MS)
+  g.lineCap = 'butt'
+  for (const [x1, z1, x2, z2, kind] of PLAN_WALLS) {
+    g.setLineDash(kind === 'head' ? [3, 3] : [])
+    g.strokeStyle = kind === 'glass' ? '#6fb6dc' : kind === 'head' ? '#9aa0a8' : '#262a2f'
+    g.lineWidth = kind === 'wall' ? WALL_T * MS : 2
+    g.beginPath(); g.moveTo(mx(x1), mz(z1)); g.lineTo(mx(x2), mz(z2)); g.stroke()
+  }
+  g.setLineDash([])
+  g.font = '600 9px ' + getComputedStyle(document.body).fontFamily; g.fillStyle = 'rgba(30,32,36,.55)'; g.textAlign = 'center'
+  for (const r of PLAN_ROOMS) { const [a, b, c, d] = r.rect; if ((c - a) > 1.3) g.fillText(r.label.toUpperCase(), mx((a + c) / 2), mz((b + d) / 2) + 3) }
+  planDrawn = true
+}
+const mapRoomEl = $('#mapRoom')
+let lastRoomLabel = ''
+function drawMinimap() {
+  if (!planDrawn && model) drawPlanLayer()
+  mg.clearRect(0, 0, map.width, map.height)
+  mg.drawImage(planLayer, 0, 0)
+  const walkMode = state.mode === 'walk'
+  const px = camera.position.x, pz = camera.position.z
+  const tx = walkMode ? px - Math.sin(walk.yaw) * 3 : controls.target.x
+  const tz = walkMode ? pz - Math.cos(walk.yaw) * 3 : controls.target.z
+  const cx = Math.min(Math.max(px, PLAN.x0 + 0.2), PLAN.x1 - 0.2), cz = Math.min(Math.max(pz, PLAN.z0 + 0.2), PLAN.z1 - 0.2)
+  const a = Math.atan2(tz - pz, tx - px), spread = walkMode ? 0.5 : 0.35
+  // view cone from the (clamped) camera toward what it looks at
+  mg.fillStyle = 'rgba(37,99,235,.18)'
+  mg.beginPath(); mg.moveTo(mx(cx), mz(cz)); mg.arc(mx(cx), mz(cz), walkMode ? 26 : 40, a - spread, a + spread); mg.closePath(); mg.fill()
+  if (!walkMode) {   // orbit target
+    mg.strokeStyle = '#2563eb'; mg.lineWidth = 1.5
+    mg.beginPath(); mg.arc(mx(tx), mz(tz), 5, 0, Math.PI * 2); mg.stroke()
+    mg.beginPath(); mg.moveTo(mx(tx) - 8, mz(tz)); mg.lineTo(mx(tx) + 8, mz(tz)); mg.moveTo(mx(tx), mz(tz) - 8); mg.lineTo(mx(tx), mz(tz) + 8); mg.stroke()
+  }
+  mg.fillStyle = '#2563eb'; mg.beginPath(); mg.arc(mx(cx), mz(cz), 4.5, 0, Math.PI * 2); mg.fill()
+  mg.strokeStyle = '#fff'; mg.lineWidth = 1.5; mg.stroke()
+  const r = roomAt(walkMode ? px : tx, walkMode ? pz : tz)
+  const label = state.mode !== 'walk' && state.view === 0 && !tween ? 'Whole apartment' : (r ? r.label : 'Outside')
+  if (label !== lastRoomLabel) { mapRoomEl.textContent = label; lastRoomLabel = label }
+}
+map.addEventListener('click', e => {
+  const rect = map.getBoundingClientRect()
+  const x = PLAN.x0 + (e.clientX - rect.left) / rect.width * (PLAN.x1 - PLAN.x0)
+  const z = PLAN.z0 + (e.clientY - rect.top) / rect.height * (PLAN.z1 - PLAN.z0)
+  if (state.mode === 'walk') { camera.position.x = x; camera.position.z = z; return }
+  // keep the current orbit offset, move the target to the clicked point
+  const off = camera.position.clone().sub(controls.target)
+  const t = new THREE.Vector3(x, 0.6, z)
+  flyTo(t.clone().add(off).toArray(), t.toArray(), 900)
+})
+
 window.__app = { renderer, scene, camera, controls, sun, parts, state }   // debugging hook
 
 // ------------------------------------------------------------------ resize + loop
@@ -303,5 +367,6 @@ renderer.setAnimationLoop(now => {
   }
   if (state.mode === 'walk') stepWalk(dt); else controls.update()
   applyCutaway()
+  drawMinimap()
   renderer.render(scene, camera)
 })
