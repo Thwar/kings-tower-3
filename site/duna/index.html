@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>King's Tower · Dept. D — 3D model</title>
-  <meta name="description" content="Interactive cutaway 3D model of King's Tower apartment D, modelled in Blender." />
+  <title>Torre Duna · Tipo E — 3D model</title>
+  <meta name="description" content="Interactive cutaway 3D model of Torre Duna apartment Tipo E (49.61 m²), modelled in Blender." />
   <link rel="preload" href="apartment.glb" as="fetch" crossorigin />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="../style.css" />
   <script type="importmap">
   {
     "imports": {
-      "three": "./vendor/three/three.module.min.js",
-      "three/addons/": "./vendor/three/addons/"
+      "three": "../vendor/three/three.module.min.js",
+      "three/addons/": "../vendor/three/addons/"
     }
   }
   </script>
@@ -19,20 +19,20 @@
 <body>
   <header class="top">
     <div class="left">
-      <a class="brand" href="./">
+      <a class="brand" href="../">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
-        <b>KING'S TOWER</b><span>/ DEPT. D</span>
+        <b>TORRE DUNA</b><span>/ TIPO E</span>
       </a>
       <nav class="apts" aria-label="Apartment">
-        <a class="on" href="./" title="King's Tower · Dept. D">DEPT. D</a>
-        <a href="./duna/" title="Torre Duna · Tipo E">DUNA E</a>
+        <a href="../" title="King's Tower · Dept. D">DEPT. D</a>
+        <a class="on" href="./" title="Torre Duna · Tipo E">DUNA E</a>
       </nav>
     </div>
     <nav class="switch" aria-label="Perspective">
       <a id="navWalk" href="./?mode=walk"><span class="ico">⇢</span>Walkthrough</a>
       <a id="nav3d" class="on" href="./"><span class="ico">⌂</span>Apartment 3D</a>
     </nav>
-    <a class="download" href="apartment.glb" download="kings-tower-dept-d.glb">
+    <a class="download" href="apartment.glb" download="torre-duna-tipo-e.glb">
       <span class="ico">⤓</span>Download 3D model
     </a>
   </header>
@@ -42,8 +42,8 @@
 
     <aside class="card intro">
       <small>INSIDE THE APARTMENT</small>
-      <h1 id="introTitle">Room to live.</h1>
-      <p><span id="introRoom">Whole apartment</span><i>/</i><span id="introArea">50.21 m² + 29.75 m² terrace</span></p>
+      <h1 id="introTitle">Compact, complete.</h1>
+      <p><span id="introRoom">Whole apartment</span><i>/</i><span id="introArea">49.61 m² incl. terrace</span></p>
     </aside>
 
     <div class="minimap" id="minimap" title="Click to look there">
@@ -95,17 +95,17 @@
         <label title="Ambient occlusion: contact shadows in corners. Costs a second scene pass, so it is off by default."><span>High quality (AO)</span><input type="checkbox" id="tgAO" /><i></i></label>
       </div>
       <div class="stats">
-        <div><b>50.21</b><small>m²</small><span>Interior</span></div>
-        <div><b>29.75</b><small>m²</small><span>Terrace</span></div>
+        <div><b>49.61</b><small>m²</small><span>Total area</span></div>
+        <div><b>≈ 5.5</b><small>m²</small><span>Terrace</span></div>
         <div><b>2.6</b><small>m</small><span>Ceiling height</span></div>
       </div>
-      <p class="note">Modelled in Blender from the developer's floor plan. Furniture and smaller dimensions are approximate.</p>
+      <p class="note">Modelled in Blender from the developer's plan (Torre residencial Duna, Dept. Tipo E). The plan gives only the total area, so room sizes are scaled from the drawing; furniture is approximate.</p>
       <a class="link" id="linkWalk" href="./?mode=walk">→ Take the first-person walkthrough</a>
     </section>
 
     <section id="tabRenders" hidden>
       <div class="gallery" id="gallery"></div>
-      <p class="note">Rendered with Cycles from the same model. Regenerate with <code>python3 blender/render_views.py</code>.</p>
+      <p class="note">Rendered with Cycles from the same model. Regenerate with <code>python3 blender/render_views.py --apt=duna</code>.</p>
     </section>
   </aside>
 
@@ -116,6 +116,6 @@
 
   <div class="lightbox" id="lightbox" hidden><img alt="" id="lightboxImg" /><button id="lightboxClose" aria-label="Close">✕</button><div class="cap" id="lightboxCap"></div></div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="../app.js"></script>
 </body>
 </html>

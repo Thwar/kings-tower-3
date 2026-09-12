@@ -3,3 +3,4 @@ dist
 blender/tex/
 blender/apartment.blend1
 site/textures/
+__pycache__/

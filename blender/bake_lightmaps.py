@@ -1,10 +1,12 @@
 """
 Bakes Cycles lighting into lightmaps and exports the baked model.
 
-    python3 blender/bake_lightmaps.py [--fast] [--only=Floor_living,Walls_N]
+    python3 blender/bake_lightmaps.py [--apt=duna] [--fast] [--only=Floor_living,Walls_N]
+
+    --apt selects the apartment: build_<apt>.py and site/<apt>/ (default: build_apartment.py → site/).
 
 What it does
-1. Runs build_apartment.py to build the scene.
+1. Runs build_<apt>.py to build the scene.
 2. Joins objects into groups: one per (cutaway group, material). Cutaway groups keep walls per side and the
    ceiling separate so the viewer can still hide them; everything else is "static".
 3. Gives every group its own material copy and a second UV map ("Lightmap", exported as TEXCOORD_1),
@@ -28,7 +30,8 @@ import numpy as np
 from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SITE = os.path.join(HERE, "..", "site")
+APT = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--apt=")), "apartment")
+SITE = os.path.join(HERE, "..", "site") if APT == "apartment" else os.path.join(HERE, "..", "site", APT)
 LM_DIR = os.path.join(SITE, "lightmaps")
 FAST = "--fast" in sys.argv
 only = [a for a in sys.argv if a.startswith("--only=")]
@@ -36,7 +39,7 @@ only = only[0].split("=")[1].split(",") if only else None
 
 t_start = time.time()
 os.environ["KT_SKIP_EXPORT"] = "1"   # the build must not overwrite the baked GLB
-runpy.run_path(os.path.join(HERE, "build_apartment.py"))
+G = runpy.run_path(os.path.join(HERE, f"build_{APT}.py"))   # the build module's globals: LIGHTS, SUN_ROT
 scene = bpy.context.scene
 P = lambda x, y, z: Vector((x, -z, y))
 
@@ -144,7 +147,7 @@ sun_data.angle = math.radians(3)
 sun_data.color = (1.0, 0.95, 0.88)
 sun = bpy.data.objects.new("Sun", sun_data)
 scene.collection.objects.link(sun)
-sun.rotation_euler = (math.radians(48), math.radians(-12), math.radians(-40))   # low afternoon sun from the west window / terrace side
+sun.rotation_euler = tuple(math.radians(a) for a in G["SUN_ROT"])   # per apartment: low afternoon sun through the main openings
 
 # interior lights: warm point lights at the lamps and downlights
 def point(name, pos, energy, color=(1.0, 0.85, 0.65), radius=0.08):
@@ -155,13 +158,8 @@ def point(name, pos, energy, color=(1.0, 0.85, 0.65), radius=0.08):
     o.location = P(*pos)
 
 
-for i, (x, z) in enumerate([(1.2, 1.0), (1.2, 3.4), (2.6, 2.2), (5.6, 1.4), (4.3, 1.4), (5.4, 4.3), (1.0, 5.2), (2.7, 5.2)]):
-    point(f"Down_{i}", (x, 2.5, z), 18, (1.0, 0.92, 0.8))
-point("Pendant_a", (4.4, 1.45, 1.25), 10); point("Pendant_b", (4.4, 1.45, 2.15), 10)
-point("FloorLamp", (3.65, 1.45, 3.85), 25)
-point("WallLamp_a", (4.15, 1.1, 5.75), 6); point("WallLamp_b", (6.75, 1.1, 5.75), 6)
-point("LED", (6.1, 1.7, 2.4), 14, (1.0, 0.95, 0.85), 1.6)
-point("Terrace", (10.3, 2.0, 0.3), 12)
+for name, pos, energy, *rest in G["LIGHTS"]:   # the apartment's own lamps, listed by its build script
+    point(name, pos, energy, *rest)
 
 # emissive materials glow a little in the bake too (they're already emissive in the model)
 

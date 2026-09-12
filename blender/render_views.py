@@ -1,9 +1,9 @@
 """
-Renders the apartment with Cycles (CPU) into site/renders/*.jpg — the "Blender renders" tab.
+Renders the apartment with Cycles (CPU) into site[/<apt>]/renders/*.jpg — the "Blender renders" tab.
 
-    python3 blender/render_views.py [--fast]      (--fast: 16 samples, 720px, for previews)
+    python3 blender/render_views.py [--apt=duna] [--fast] [--only=whole,living]      (--fast: 16 samples, 720px, for previews)
 
-Builds the scene by running build_apartment.py first, then hides the ceiling and the two walls
+Builds the scene by running build_<apt>.py first (its RENDER_VIEWS / FILL_AT globals set the cameras), then hides the ceiling and the two walls
 facing the camera (the same cutaway the web viewer does) and renders each viewpoint.
 """
 import math
@@ -15,26 +15,19 @@ import bpy
 from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "site", "renders")
+APT = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--apt=")), "apartment")
+SITE = os.path.join(HERE, "..", "site") if APT == "apartment" else os.path.join(HERE, "..", "site", APT)
+OUT = os.path.join(SITE, "renders")
 FAST = "--fast" in sys.argv
 
 os.environ["KT_SKIP_EXPORT"] = "1"   # the build must not overwrite the baked GLB
-runpy.run_path(os.path.join(HERE, "build_apartment.py"))
+G = runpy.run_path(os.path.join(HERE, f"build_{APT}.py"))
 scene = bpy.context.scene
 
 # plan (x, y_up, z_south) → Blender (x, -z, y)
 P = lambda x, y, z: Vector((x, -z, y))
 
-VIEWS = [
-    # key, camera position (plan), look-at (plan), fov, hide sides
-    ("whole",   (-7.5, 11.5, 16.5), (6.2, 0.5, 3.0), 30, "SW"),
-    ("living",  (-6.0, 5.0, 5.0),  (2.8, 0.6, 2.2), 40, "SW"),
-    ("kitchen", (9.0, 6.0, -5.5),  (5.3, 0.7, 1.7), 40, "N"),
-    ("bedroom", (6.2, 9.5, 11.0),  (5.5, 0.3, 4.4), 40, "S"),
-    ("bath",    (-3.5, 4.0, 9.0),  (1.0, 0.8, 5.0), 42, "SW"),
-    ("terrace", (17.0, 5.0, -2.5), (10.3, 0.8, 3.0), 42, "NE"),
-    ("service", (2.6, 5.0, 12.0),  (2.55, 0.6, 5.3), 40, "S"),
-]
+VIEWS = G["RENDER_VIEWS"]   # key, camera position (plan), look-at (plan), fov, hidden wall sides
 
 # ---------------------------------------------------------------- world + light
 world = bpy.data.worlds.new("World")
@@ -57,7 +50,7 @@ fill_data.energy = 900
 fill_data.size = 12
 fill = bpy.data.objects.new("Fill", fill_data)
 scene.collection.objects.link(fill)
-fill.location = P(2.0, 9.0, 8.0)
+fill.location = P(*G["FILL_AT"])
 fill.rotation_euler = (math.radians(35), 0, math.radians(-20))
 
 # ---------------------------------------------------------------- render settings

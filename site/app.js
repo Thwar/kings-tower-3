@@ -7,28 +7,16 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
-import { walls as PLAN_WALLS, rooms as PLAN_ROOMS, BOUNDS as PLAN, roomAt, T as WALL_T } from './plan.js'
+// Everything apartment-specific (viewpoints, plan, bounds) comes from the page's own config.js:
+// site/config.js for King's Tower Dept. D, site/duna/config.js for Torre Duna Tipo E. Same app.js for both.
+const CFG = (await import(new URL('./config.js', location.href).href)).default
+const { walls: PLAN_WALLS, rooms: PLAN_ROOMS, BOUNDS: PLAN, roomAt, T: WALL_T } = CFG.plan
 const q = new URLSearchParams(location.search)   // ?mode=walk · ?env= ?exp= ?lm= tune lighting · ?ao=1
 
 // ------------------------------------------------------------------ viewpoints
-// pos / target in metres, apartment space: x east, y up, z south (origin = NW corner of the living room)
-const VIEWS = [
-  { key: 'whole',   name: 'Whole apartment', room: 'Whole apartment', area: '50.21 m² + 29.75 m² terrace', title: 'Room to live.',
-    pos: [-7.5, 11.5, 16.5], target: [6.2, 0.5, 3.0], walk: [1.4, 0.9, -Math.PI / 2 - 0.3] },
-  { key: 'living',  name: 'Living',          room: 'Living',            area: '≈ 14 m²',  title: 'Where the day lands.',
-    pos: [-6.0, 5.0, 5.0], target: [2.8, 0.6, 2.2], walk: [3.0, 1.1, Math.PI / 2 + 0.35] },
-  { key: 'kitchen', name: 'Kitchen & dining', room: 'Kitchen & dining', area: '≈ 12 m²',  title: 'Cook, eat, repeat.',
-    pos: [9.0, 6.0, -5.5], target: [5.3, 0.7, 1.7], walk: [5.9, 0.75, Math.PI] },
-  { key: 'bedroom', name: 'Bedroom',         room: 'Bedroom',           area: '≈ 12 m²',  title: 'Quiet corner.',
-    pos: [6.2, 9.5, 11.0], target: [5.5, 0.3, 4.4], walk: [5.3, 3.25, Math.PI] },
-  { key: 'bath',    name: 'Bathroom',        room: 'Bathroom',          area: '≈ 3.5 m²', title: 'Walk-in shower.',
-    pos: [-3.5, 4.0, 9.0], target: [1.0, 0.8, 5.0], walk: [1.5, 5.0, Math.PI * 0.5] },
-  { key: 'service', name: 'Service area',    room: 'Service area',      area: '≈ 2 m²',   title: 'Laundry, tucked away.',
-    pos: [2.6, 5.0, 12.0], target: [2.55, 0.6, 5.3], walk: [2.7, 4.7, Math.PI] },
-  { key: 'terrace', name: 'Terrace',         room: 'Terrace',           area: '29.75 m²', title: 'The outdoor room.',
-    pos: [17.0, 5.0, -2.5], target: [10.3, 0.8, 3.0], walk: [8.6, 2.6, -Math.PI / 2] },
-]
-const CENTER = new THREE.Vector3(6.2, 1.3, 3.0)
+// pos / target in metres, apartment space: x east, y up, z south — see config.js
+const VIEWS = CFG.views
+const CENTER = new THREE.Vector3(...CFG.center)
 // walk-mode collision: every plan wall (except the heads above doorways) as an XZ box, thickness T
 const WALK_R = 0.22
 const WALL_BOXES = PLAN_WALLS.filter(w => w[4] !== 'head').map(([x1, z1, x2, z2]) => ({
@@ -36,7 +24,7 @@ const WALL_BOXES = PLAN_WALLS.filter(w => w[4] !== 'head').map(([x1, z1, x2, z2]
 }))
 const blocked = (x, z) => WALL_BOXES.some(b => x + WALK_R > b.minX && x - WALK_R < b.maxX && z + WALK_R > b.minZ && z - WALK_R < b.maxZ)
 const WALK_ONLY = q.get('mode') === 'walk'
-const BOUNDS = { minX: -0.3, maxX: 12.7, minZ: 0.1, maxZ: 5.85 }   // walk mode stays inside the apartment
+const BOUNDS = CFG.walkBounds   // walk mode stays inside the apartment
 const $ = s => document.querySelector(s)
 
 // ------------------------------------------------------------------ renderer / scene
@@ -190,7 +178,7 @@ loader.load('apartment.glb', gltf => {
   applyCutaway(true)
   requestShadows()
 }, ev => {
-  const p = ev.total ? Math.round(ev.loaded / ev.total * 100) : Math.min(99, Math.round(ev.loaded / 3.1e6 * 100))
+  const p = ev.total ? Math.round(ev.loaded / ev.total * 100) : Math.min(99, Math.round(ev.loaded / CFG.glbBytes * 100))
   $('#loadingText').textContent = `Opening the apartment · ${p}%`
 }, err => { $('#loadingText').textContent = 'Could not load the model'; console.error(err) })
 
@@ -234,13 +222,13 @@ const PROC_TILE = { oak_floor: 2, oak: 1.2, walnut: 1.2, plaster: 2, plaster_ext
 const TINT = { charcoal: '#4a4c4e', walnut: '#6b4a34', wool_rug: '#b8b2a8', wool_rug_dark: '#5b5a58', leather: '#2c2927', leather_tan: '#8a5a3a', linen: '#efece6', oak: '#d9bd92' }
 const SCAN_FOR = { wool_rug_dark: 'wool_rug', leather_tan: 'leather', plaster_ext: 'plaster', art_print: null, matte_black: null }
 function applyScannedTextures(root) {
-  fetch('textures/manifest.json').then(r => r.ok ? r.json() : null).then(manifest => {
+  fetch(CFG.textures + 'manifest.json').then(r => r.ok ? r.json() : null).then(manifest => {
     if (!manifest) return
     const cache = {}
     const load = (key, file) => {
       const id = key + '/' + file
       if (!cache[id]) {
-        const t = texLoader.load(`textures/${key}/${file}.jpg`, () => { dirty = true })
+        const t = texLoader.load(`${CFG.textures}${key}/${file}.jpg`, () => { dirty = true })
         t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.flipY = false
         if (file === 'color') t.colorSpace = THREE.SRGBColorSpace
         cache[id] = t
@@ -453,7 +441,7 @@ VIEWS.forEach((v, i) => {
 })
 setView(0)
 if (WALK_ONLY) {
-  document.title = "King's Tower · Dept. D — walkthrough"
+  document.title = `${CFG.name} — walkthrough`
   $('#navWalk').classList.add('on'); $('#nav3d').classList.remove('on')
   $('#linkWalk').href = './'; $('#linkWalk').textContent = '→ Back to the cutaway model'
   $('#footWalk').href = './'; $('#footWalk').textContent = 'Back to the model ↗'
@@ -518,6 +506,7 @@ $('#grip').addEventListener('click', () => panel.classList.toggle('tall'))
 
 // ------------------------------------------------------------------ minimap (2D plan)
 const map = $('#map'), mg = map.getContext('2d')
+map.height = Math.round(map.width * (PLAN.z1 - PLAN.z0) / (PLAN.x1 - PLAN.x0))
 const MS = map.width / (PLAN.x1 - PLAN.x0)
 const mx = x => (x - PLAN.x0) * MS, mz = z => (z - PLAN.z0) * MS
 const planLayer = document.createElement('canvas'); planLayer.width = map.width; planLayer.height = map.height
