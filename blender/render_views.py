@@ -18,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "site", "renders")
 FAST = "--fast" in sys.argv
 
+os.environ["KT_SKIP_EXPORT"] = "1"   # the build must not overwrite the baked GLB
 runpy.run_path(os.path.join(HERE, "build_apartment.py"))
 scene = bpy.context.scene
 

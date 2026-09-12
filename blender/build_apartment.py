@@ -617,15 +617,19 @@ box("WallLight", (10.3, 2.0, 0.08), (0.1, 0.22, 0.1), M["frame"], bevel=0.008, p
 box("WallLightGlow", (10.3, 2.0, 0.14), (0.06, 0.16, 0.02), M["downlight"], bevel=0, part="light", room="terrace")
 
 # ----------------------------------------------------------------------------- export
-os.makedirs(os.path.dirname(OUT), exist_ok=True)
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.export_scene.gltf(
-    filepath=OUT, export_format="GLB", export_apply=True, export_extras=True,
-    export_yup=True, export_lights=False, export_cameras=False, export_animations=False,
-    export_materials="EXPORT", export_normals=True, export_image_format="AUTO", export_jpeg_quality=82,
-    use_selection=False,
-)
-print("exported", OUT, os.path.getsize(OUT) // 1024, "KB", "objects:", len(bpy.data.objects))
+# render_views.py and bake_lightmaps.py build the scene but must not overwrite the baked site/apartment.glb
+if os.environ.get("KT_SKIP_EXPORT"):
+    print("build done (export skipped)")
+else:
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.export_scene.gltf(
+        filepath=OUT, export_format="GLB", export_apply=True, export_extras=True,
+        export_yup=True, export_lights=False, export_cameras=False, export_animations=False,
+        export_materials="EXPORT", export_normals=True, export_image_format="AUTO", export_jpeg_quality=82,
+        use_selection=False,
+    )
+    print("exported", OUT, os.path.getsize(OUT) // 1024, "KB", "objects:", len(bpy.data.objects))
 
 # Optional: save a .blend next to the script for opening in Blender
 if "--blend" in sys.argv:

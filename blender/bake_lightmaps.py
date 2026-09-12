@@ -35,6 +35,7 @@ only = [a for a in sys.argv if a.startswith("--only=")]
 only = only[0].split("=")[1].split(",") if only else None
 
 t_start = time.time()
+os.environ["KT_SKIP_EXPORT"] = "1"   # the build must not overwrite the baked GLB
 runpy.run_path(os.path.join(HERE, "build_apartment.py"))
 scene = bpy.context.scene
 P = lambda x, y, z: Vector((x, -z, y))
