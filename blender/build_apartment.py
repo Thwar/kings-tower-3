@@ -8,17 +8,26 @@ Units are metres. Blender axes: X east, Y north, Z up.
 The plan (src/scene/plan.js) uses x east, z south, y up — so plan z becomes -Y here,
 and the glTF exporter's Y-up conversion turns it back into the same layout three.js expects.
 
+Materials are PBR image textures generated procedurally by textures.py (seamless, offline) and
+projected onto every object with a world-space box projection, so grain and tiles line up across pieces.
+
 Every object carries custom properties that the web viewer reads from glTF extras:
   side  = N | S | E | W | I   (exterior wall facing, I = interior)   → cutaway hides walls facing the camera
-  part  = wall | ceiling | floor | slab | glass | furniture | light
+  part  = wall | frame | ceiling | floor | slab | glass | furniture | light
   room  = living | kitchen | bedroom | bath | service | terrace
+
+Interior concept: minimal bachelor pad — warm off-white plaster, mid-oak plank floor, matte black and walnut,
+charcoal linen and black leather, one statement piece per room, nothing on the counters that doesn't earn its place.
 """
 import math
 import os
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import textures  # noqa: E402
 
 H = 2.6      # ceiling height
 T = 0.14     # wall thickness
@@ -42,26 +51,30 @@ def coll(name):
 
 # ----------------------------------------------------------------------------- materials
 MATS = {}
+_lin = lambda c: c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def mat(name, color, rough=0.6, metal=0.0, alpha=1.0, emit=None, emit_strength=0.0, sheen=0.0):
+def _rgb(hexs):
+    return tuple(_lin(int(hexs[i:i + 2], 16) / 255) for i in (1, 3, 5))
+
+
+def mat(name, color, rough=0.6, metal=0.0, alpha=1.0, emit=None, emit_strength=0.0, sheen=0.0, clearcoat=0.0):
+    """flat Principled material"""
     if name in MATS:
         return MATS[name]
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     bsdf = m.node_tree.nodes["Principled BSDF"]
-    r, g, b = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-    # sRGB → linear so the glTF base colour matches the hex we typed
-    lin = lambda c: c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    bsdf.inputs["Base Color"].default_value = (lin(r), lin(g), lin(b), 1)
+    bsdf.inputs["Base Color"].default_value = (*_rgb(color), 1)
     bsdf.inputs["Roughness"].default_value = rough
     bsdf.inputs["Metallic"].default_value = metal
     bsdf.inputs["Alpha"].default_value = alpha
     if sheen:
         bsdf.inputs["Sheen Weight"].default_value = sheen
+    if clearcoat:
+        bsdf.inputs["Coat Weight"].default_value = clearcoat
     if emit:
-        er, eg, eb = [int(emit[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-        bsdf.inputs["Emission Color"].default_value = (lin(er), lin(eg), lin(eb), 1)
+        bsdf.inputs["Emission Color"].default_value = (*_rgb(emit), 1)
         bsdf.inputs["Emission Strength"].default_value = emit_strength
     if alpha < 1:
         m.surface_render_method = "BLENDED"
@@ -70,47 +83,118 @@ def mat(name, color, rough=0.6, metal=0.0, alpha=1.0, emit=None, emit_strength=0
     return m
 
 
+def tmat(name, tex_set, metal=0.0, rough_mul=1.0, tint=None, normal_strength=1.0, clearcoat=0.0, sheen=0.0):
+    """textured Principled material from a procedural set; UVs are box-projected per object using m['tile']"""
+    if name in MATS:
+        return MATS[name]
+    t = textures.ensure(tex_set)
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    bsdf.inputs["Metallic"].default_value = metal
+    if clearcoat:
+        bsdf.inputs["Coat Weight"].default_value = clearcoat
+    if sheen:
+        bsdf.inputs["Sheen Weight"].default_value = sheen
+
+    def image(path, colorspace):
+        img = bpy.data.images.load(path, check_existing=True)
+        img.colorspace_settings.name = colorspace
+        n = nt.nodes.new("ShaderNodeTexImage")
+        n.image = img
+        return n
+
+    col = image(t["color"], "sRGB")
+    if tint:
+        mix = nt.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"; mix.blend_type = "MULTIPLY"; mix.inputs["Factor"].default_value = 1.0
+        nt.links.new(col.outputs["Color"], mix.inputs[6])
+        mix.inputs[7].default_value = (*_rgb(tint), 1)
+        nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    else:
+        nt.links.new(col.outputs["Color"], bsdf.inputs["Base Color"])
+    rough = image(t["rough"], "Non-Color")
+    if rough_mul != 1.0:
+        mm = nt.nodes.new("ShaderNodeMath"); mm.operation = "MULTIPLY"; mm.inputs[1].default_value = rough_mul
+        nt.links.new(rough.outputs["Color"], mm.inputs[0]); nt.links.new(mm.outputs[0], bsdf.inputs["Roughness"])
+    else:
+        nt.links.new(rough.outputs["Color"], bsdf.inputs["Roughness"])
+    nrm = image(t["normal"], "Non-Color")
+    nm = nt.nodes.new("ShaderNodeNormalMap"); nm.inputs["Strength"].default_value = normal_strength
+    nt.links.new(nrm.outputs["Color"], nm.inputs["Color"]); nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+    m["tile"] = t["tile"]
+    MATS[name] = m
+    return m
+
+
 M = dict(
-    plaster=mat("plaster", "#ece8e1", 0.9),
-    plaster_ext=mat("plaster_ext", "#c9c5be", 0.95),
-    concrete=mat("concrete", "#b4b1ab", 0.95),
-    ceiling=mat("ceiling", "#f4f2ee", 0.9),
-    wood=mat("wood_floor", "#c8a274", 0.55),
-    tile=mat("tile", "#d9d6d0", 0.3),
-    stone=mat("stone", "#b7b1a7", 0.85),
-    skirting=mat("skirting", "#f2efe9", 0.6),
-    frame=mat("frame", "#2b2d30", 0.45, 0.5),
-    glass=mat("glass", "#cfe3ec", 0.05, 0.0, 0.22),
-    oak=mat("oak", "#c9a87d", 0.6),
-    walnut=mat("walnut", "#5b4232", 0.5),
-    graphite=mat("graphite", "#33363a", 0.4),
-    quartz=mat("quartz", "#eae7e1", 0.2),
-    white=mat("white", "#f6f6f4", 0.25),
-    steel=mat("steel", "#c6c9cd", 0.3, 0.9),
-    brass=mat("brass", "#b8955a", 0.35, 0.85),
-    sofa=mat("sofa", "#8d8477", 0.95, sheen=0.4),
-    sofa2=mat("sofa_dark", "#6e6559", 0.95, sheen=0.4),
-    linen=mat("linen", "#efece6", 0.95, sheen=0.5),
-    throw=mat("throw", "#a49f94", 0.95, sheen=0.4),
-    pillow=mat("pillow", "#b7a178", 0.95, sheen=0.4),
-    rug=mat("rug", "#b3a690", 1.0),
-    rug2=mat("rug_terrace", "#a9a493", 1.0),
-    screen=mat("screen", "#111214", 0.15, 0.3),
-    tv=mat("tv_glow", "#1d3550", 0.3, emit="#2a5a85", emit_strength=0.8),
-    leaf=mat("leaf", "#4d7a3a", 0.85),
-    leaf2=mat("leaf_light", "#6a9c50", 0.85),
-    pot=mat("pot", "#a08066", 0.9),
-    lamp=mat("lamp_shade", "#f5ead3", 0.8, emit="#ffd9a0", emit_strength=0.6),
-    pendant=mat("pendant", "#1b1b1b", 0.5, emit="#7a5525", emit_strength=0.5),
+    # architecture
+    plaster=tmat("plaster", "plaster"),
+    plaster_ext=tmat("plaster_ext", "plaster_ext"),
+    concrete=tmat("concrete", "concrete"),
+    ceiling=mat("ceiling", "#f2f0ec", 0.9),
+    wood=tmat("oak_floor", "oak_floor", clearcoat=0.25),
+    tile=tmat("tile", "tile"),
+    stone=tmat("paving", "paving"),
+    skirting=mat("skirting", "#f1eee8", 0.55),
+    frame=mat("frame", "#222427", 0.4, 0.6),
+    glass=mat("glass", "#d6e6ee", 0.03, 0.0, 0.2),
+    railing=mat("railing", "#2b2d30", 0.35, 0.7),
+    # finishes
+    oak=tmat("oak", "oak"),
+    walnut=tmat("walnut", "walnut", clearcoat=0.15),
+    black=tmat("matte_black", "matte_black", rough_mul=0.5),
+    quartz=tmat("quartz", "quartz", clearcoat=0.4),
+    steel=tmat("brushed", "brushed", metal=0.95),
+    white=mat("white", "#f6f6f4", 0.22, clearcoat=0.5),
+    # soft
+    charcoal=tmat("charcoal", "charcoal", sheen=0.4),
+    linen=tmat("linen", "linen", sheen=0.5),
+    rug=tmat("wool_rug", "wool_rug"),
+    rug_dark=tmat("wool_rug_dark", "wool_rug", tint="#5b5a58"),
+    leather=tmat("leather", "leather"),
+    leather_tan=tmat("leather_tan", "leather_tan"),
+    # small stuff
+    screen=mat("screen", "#0f1012", 0.12, 0.3, clearcoat=0.8),
+    tv=mat("tv_glow", "#1a2e45", 0.3, emit="#2d5f8a", emit_strength=0.6),
+    leaf=mat("leaf", "#3f6b33", 0.8),
+    leaf2=mat("leaf_light", "#5c8f47", 0.8),
+    bark=mat("bark", "#5a4632", 0.9),
+    pot_black=mat("pot_black", "#26272a", 0.6),
+    pot_clay=mat("pot_clay", "#9b7b63", 0.9),
+    brass=mat("brass", "#b08d57", 0.3, 0.9),
+    lamp=mat("lamp_shade", "#f3ead6", 0.7, emit="#ffd6a0", emit_strength=0.7),
+    pendant=mat("pendant", "#161616", 0.45, 0.2, emit="#8a6030", emit_strength=0.4),
     downlight=mat("downlight", "#fff4e2", 0.5, emit="#ffe6c2", emit_strength=3.0),
-    art=mat("art", "#8ea393", 0.8),
-    railing=mat("railing", "#3a3d41", 0.4, 0.6),
+    art=mat("art", "#2f3336", 0.7),
+    art2=tmat("art_print", "concrete", tint="#d8d2c8"),
+    vinyl=mat("vinyl", "#1b1b1b", 0.3, clearcoat=0.3),
+    book=mat("book", "#7d7468", 0.85),
+    towel=mat("towel", "#dcd7cd", 1.0, sheen=0.6),
 )
 
 # ----------------------------------------------------------------------------- primitives
 
 
-def _finish(obj, name, collection, material, props, bevel):
+def uv_box(obj, tile):
+    """world-space box projection: each face is mapped along its dominant world normal, 1 UV unit = `tile` metres"""
+    me = obj.data
+    if not me.uv_layers:
+        me.uv_layers.new(name="UVMap")
+    uv = me.uv_layers.active.data
+    mw = obj.matrix_world
+    nmat = mw.to_3x3().inverted().transposed()
+    for poly in me.polygons:
+        n = (nmat @ poly.normal).normalized()
+        ax = max(range(3), key=lambda i: abs(n[i]))
+        for li in poly.loop_indices:
+            co = mw @ me.vertices[me.loops[li].vertex_index].co
+            u, v = (co.y, co.z) if ax == 0 else (co.x, co.z) if ax == 1 else (co.x, co.y)
+            uv[li].uv = (u / tile, v / tile)
+
+
+def _finish(obj, name, collection, material, props, bevel, segments=3, smooth=False):
     obj.name = name
     obj.data.name = name
     for c in list(obj.users_collection):
@@ -119,18 +203,25 @@ def _finish(obj, name, collection, material, props, bevel):
     obj.data.materials.append(material)
     for k, v in props.items():
         obj[k] = v
+    bpy.context.view_layer.update()
+    if material.get("tile"):
+        uv_box(obj, material["tile"])
     if bevel:
         b = obj.modifiers.new("bevel", "BEVEL")
         b.width = bevel
-        b.segments = 3
+        b.segments = segments
         b.limit_method = "ANGLE"
         b.angle_limit = math.radians(40)
+        b.harden_normals = True
     for poly in obj.data.polygons:
-        poly.use_smooth = False
+        poly.use_smooth = smooth
+    if bevel and segments >= 4:
+        for poly in obj.data.polygons:
+            poly.use_smooth = True
     return obj
 
 
-def box(name, center, size, material, collection="Furniture", bevel=0.012, rot_z=0.0, rot_x=0.0, **props):
+def box(name, center, size, material, collection="Furniture", bevel=0.012, rot_z=0.0, rot_x=0.0, segments=3, **props):
     """center/size in plan space: (x, y_up, z_south). Converted to Blender here."""
     x, y, z = center
     sx, sy, sz = size
@@ -139,28 +230,29 @@ def box(name, center, size, material, collection="Furniture", bevel=0.012, rot_z
     o.scale = (sx, sz, sy)
     o.rotation_euler = (rot_x, 0, -rot_z)
     bpy.ops.object.transform_apply(scale=True)
-    return _finish(o, name, collection, material, props, min(bevel, min(sx, sy, sz) * 0.35) if bevel else 0)
+    return _finish(o, name, collection, material, props, min(bevel, min(sx, sy, sz) * 0.42) if bevel else 0, segments)
 
 
-def cyl(name, center, radius, height, material, collection="Furniture", r2=None, verts=24, bevel=0.0, **props):
+def soft(name, center, size, material, r=0.05, **kw):
+    """cushion-like box: big rounded bevel, smooth shading"""
+    return box(name, center, size, material, bevel=r, segments=5, **kw)
+
+
+def cyl(name, center, radius, height, material, collection="Furniture", r2=None, verts=32, bevel=0.0, rot=(0, 0, 0), **props):
     x, y, z = center
     bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r2 if r2 is not None else radius, radius2=radius,
-                                    depth=height, location=(x, -z, y))
+                                    depth=height, location=(x, -z, y), rotation=rot)
     o = bpy.context.active_object
-    for poly in o.data.polygons:
-        poly.use_smooth = True
-    return _finish(o, name, collection, material, props, bevel)
+    return _finish(o, name, collection, material, props, bevel, 3, smooth=True)
 
 
-def sphere(name, center, radius, material, collection="Furniture", scale=(1, 1, 1), **props):
+def sphere(name, center, radius, material, collection="Furniture", scale=(1, 1, 1), rot=(0, 0, 0), sub=2, **props):
     x, y, z = center
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=radius, location=(x, -z, y))
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=sub, radius=radius, location=(x, -z, y), rotation=rot)
     o = bpy.context.active_object
     o.scale = (scale[0], scale[2], scale[1])
     bpy.ops.object.transform_apply(scale=True)
-    for poly in o.data.polygons:
-        poly.use_smooth = True
-    return _finish(o, name, collection, material, props, 0)
+    return _finish(o, name, collection, material, props, 0, smooth=True)
 
 
 def floor_plane(name, rect, material, y=0.0, **props):
@@ -205,7 +297,7 @@ frames = [  # dark aluminium frames: x1,z1,x2,z2,y0,y1,side (same side as the wa
     (7.8, 0.35, 7.8, 1.85, 0, 2.25, "I"),
     (7.8, 3.95, 7.8, 5.55, 0, 2.25, "I"),
 ]
-downlights = [(1.2, 1.2), (2.6, 3.0), (5.6, 1.4), (4.3, 1.4), (5.4, 4.3), (1.0, 5.2), (2.7, 5.2)]
+downlights = [(1.2, 1.0), (1.2, 3.4), (2.6, 2.2), (5.6, 1.4), (4.3, 1.4), (5.4, 4.3), (1.0, 5.2), (2.7, 5.2)]
 
 # ----------------------------------------------------------------------------- structure
 EXT = T / 2 - 0.008   # 8 mm short of the neighbouring wall's far face (past its 6 mm bevel): hidden inside, never coincident
@@ -223,12 +315,12 @@ for i, (x1, z1, x2, z2, side, o) in enumerate(walls):
             bevel=0, rot_z=rot, part="glass", side=side)
         continue
     box(f"Wall_{side}_{i:02d}", (cx, (y0 + y1) / 2, cz), (length_ext, y1 - y0, T),
-        M["plaster_ext"] if side in "NSEW" else M["plaster"], "Walls", bevel=0.006, rot_z=rot, part="wall", side=side)
+        M["plaster"], "Walls", bevel=0.006, rot_z=rot, part="wall", side=side)
     if y0 == 0 and not o.get("noskirt"):
         s0, s1 = (0.01 if e0 else 0), (0.01 if e1 else 0)
         scx, scz = cx + ux * (s1 - s0) / 2, cz + uz * (s1 - s0) / 2
-        box(f"Skirting_{side}_{i:02d}", (scx, 0.045, scz), (length_ext + s0 + s1, 0.09, T + 0.03), M["skirting"], "Walls",
-            bevel=0.004, rot_z=rot, part="wall", side=side)
+        box(f"Skirting_{side}_{i:02d}", (scx, 0.04, scz), (length_ext + s0 + s1, 0.08, T + 0.024), M["skirting"], "Walls",
+            bevel=0.003, rot_z=rot, part="wall", side=side)
 
 for i, (x1, z1, x2, z2, y0, y1, fside) in enumerate(frames):
     dx, dz = x2 - x1, z2 - z1
@@ -250,22 +342,22 @@ box("Slab", (6.2, -0.17, 2.975), (13.6, 0.3, 6.75), M["concrete"], "Structure", 
 # ceiling + downlights
 box("Ceiling", (3.7, H + 0.05, 2.975), (8.2, 0.1, 5.95), M["ceiling"], "Ceiling", bevel=0, part="ceiling")
 for i, (x, z) in enumerate(downlights):
-    cyl(f"Downlight_{i}", (x, H - 0.004, z), 0.07, 0.008, M["downlight"], "Ceiling", part="ceiling")
+    cyl(f"Downlight_{i}", (x, H - 0.004, z), 0.05, 0.008, M["downlight"], "Ceiling", part="ceiling")
 
-# terrace curb + rail cap + planters
-box("Curb", (10.3, 0.06, 5.95), (5, 0.12, T), M["graphite"], "Structure", part="slab", room="terrace")
-box("RailCap", (10.3, 1.12, 5.95), (5.0, 0.05, 0.06), M["railing"], "Structure", part="slab", room="terrace")
+# terrace curb + railing
+box("Curb", (10.3, 0.06, 5.95), (5, 0.12, T), M["concrete"], "Structure", part="slab", room="terrace")
+box("RailCap", (10.3, 1.12, 5.95), (5.0, 0.04, 0.05), M["railing"], "Structure", part="slab", room="terrace")
 for i, x in enumerate([7.9, 9.15, 10.4, 11.65, 12.75]):
-    box(f"RailPost_{i}", (x, 0.6, 5.95), (0.04, 1.0, 0.04), M["railing"], "Structure", bevel=0, part="slab", room="terrace")
+    box(f"RailPost_{i}", (x, 0.6, 5.95), (0.03, 1.0, 0.03), M["railing"], "Structure", bevel=0, part="slab", room="terrace")
 
-# sliding glass leaves stacked open + doors
+# sliding glass leaves stacked open + doors (flush, black hardware)
 box("SlideLeaf_1", (7.86, 1.12, 1.5), (0.03, 2.2, 0.7), M["glass"], "Glass", bevel=0, part="glass", side="I")
 box("SlideLeaf_2", (7.86, 1.12, 5.2), (0.03, 2.2, 0.7), M["glass"], "Glass", bevel=0, part="glass", side="I")
-box("Door_bedroom", (3.42, 1.05, 4.28), (0.05, 2.1, 0.85), M["oak"], "Furniture", part="furniture", room="bedroom")
-box("Door_bath", (0.7, 1.05, 4.52), (0.85, 2.1, 0.05), M["oak"], "Furniture", part="furniture", room="bath")
-box("Door_service", (2.7, 1.05, 4.52), (0.85, 2.1, 0.05), M["oak"], "Furniture", part="furniture", room="service")
-box("Door_entry", (1.25, 1.05, 0.08), (0.9, 2.1, 0.05), M["walnut"], "Furniture", part="furniture", room="living")
-box("Door_handle", (1.6, 1.0, 0.12), (0.05, 0.05, 0.05), M["brass"], "Furniture", bevel=0.01, part="furniture", room="living")
+box("Door_bedroom", (3.42, 1.05, 4.28), (0.04, 2.1, 0.85), M["walnut"], "Furniture", part="furniture", room="bedroom")
+box("Door_bath", (0.7, 1.05, 4.52), (0.85, 2.1, 0.04), M["walnut"], "Furniture", part="furniture", room="bath")
+box("Door_service", (2.7, 1.05, 4.52), (0.85, 2.1, 0.04), M["walnut"], "Furniture", part="furniture", room="service")
+box("Door_entry", (1.25, 1.05, 0.08), (0.9, 2.1, 0.05), M["black"], "Furniture", part="furniture", room="living")
+box("Door_handle", (1.58, 1.02, 0.13), (0.02, 0.3, 0.02), M["frame"], "Furniture", bevel=0.005, part="furniture", room="living")
 
 # ----------------------------------------------------------------------------- furniture helpers
 _seed = [11]
@@ -276,178 +368,253 @@ def rnd():
     return _seed[0] / 233280
 
 
-def plant(name, x, z, s=1.0, pot=True, room="living"):
-    if pot:
-        cyl(f"{name}_pot", (x, 0.16 * s, z), 0.18 * s, 0.32 * s, M["pot"], r2=0.14 * s, part="furniture", room=room)
-    cyl(f"{name}_stem", (x, 0.57 * s, z), 0.025, 0.5 * s, M["walnut"], r2=0.04, verts=10, part="furniture", room=room)
-    for i in range(7):
-        sphere(f"{name}_leaf{i}", (x + (rnd() - 0.5) * 0.36 * s, 0.78 * s + rnd() * 0.34 * s, z + (rnd() - 0.5) * 0.36 * s),
-               0.2 * s, M["leaf"] if i % 2 else M["leaf2"], scale=(1, 0.7, 1), part="furniture", room=room)
+def plant(name, x, z, s=1.0, pot="black", room="living", leaves=34, kind="ficus"):
+    """ficus-like: trunk, a few branches, flattened leaf ellipsoids in two greens"""
+    if pot == "black":
+        cyl(f"{name}_pot", (x, 0.17 * s, z), 0.17 * s, 0.34 * s, M["pot_black"], r2=0.13 * s, bevel=0.01, part="furniture", room=room)
+    elif pot == "clay":
+        cyl(f"{name}_pot", (x, 0.17 * s, z), 0.18 * s, 0.34 * s, M["pot_clay"], r2=0.14 * s, bevel=0.01, part="furniture", room=room)
+    top = 0.34 * s if pot else 0.0
+    cyl(f"{name}_trunk", (x, top + 0.45 * s, z), 0.02 * s, 0.9 * s, M["bark"], r2=0.035 * s, verts=10, part="furniture", room=room)
+    for b in range(4):
+        a = b * 1.6 + rnd()
+        bx, bz = math.cos(a) * 0.12 * s, math.sin(a) * 0.12 * s
+        cyl(f"{name}_br{b}", (x + bx, top + (0.75 + b * 0.1) * s, z + bz), 0.012 * s, 0.35 * s, M["bark"], verts=8,
+            rot=(math.radians(35), 0, -a), part="furniture", room=room)
+    for i in range(leaves):
+        a, r = rnd() * math.pi * 2, (0.12 + rnd() * 0.3) * s
+        y = top + (0.75 + rnd() * 0.55) * s
+        sphere(f"{name}_leaf{i}", (x + math.cos(a) * r, y, z + math.sin(a) * r), 0.075 * s,
+               M["leaf"] if i % 3 else M["leaf2"], scale=(1.3, 0.35, 0.8), rot=(rnd() * 0.8, rnd() * 0.5, a), sub=1,
+               part="furniture", room=room)
 
 
-def sofa(name, x, z, rot, room="living"):
+def grass(name, x, z, room="terrace", blades=10, s=1.0):
+    for i in range(blades):
+        a = rnd() * math.pi * 2; r = rnd() * 0.12 * s
+        cyl(f"{name}_b{i}", (x + math.cos(a) * r, 0.42 * s, z + math.sin(a) * r), 0.006, (0.5 + rnd() * 0.5) * s,
+            M["leaf2"] if i % 2 else M["leaf"], verts=5, rot=(rnd() * 0.25, rnd() * 0.25, 0), part="furniture", room=room)
+
+
+def sofa(name, x, z, rot, w=2.4, fabric=None, room="living"):
+    """low modular sofa: platform, loose seat and back cushions, thin black feet"""
+    fabric = fabric or M["charcoal"]
     c, s = math.cos(rot), math.sin(rot)
     P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
 
-    def part(n, dx, y, dz, size, m, rx=0.0):
+    def part(n, dx, y, dz, size, m, r=0.02, rx=0.0):
         px, pz = P(dx, dz)
-        box(f"{name}_{n}", (px, y, pz), size, m, rot_z=rot, rot_x=rx, bevel=0.03, part="furniture", room=room)
+        box(f"{name}_{n}", (px, y, pz), size, m, rot_z=rot, rot_x=rx, bevel=r, segments=5, part="furniture", room=room)
 
-    part("seat", 0, 0.21, 0, (1.9, 0.42, 0.9), M["sofa"])
-    part("back", 0, 0.63, -0.33, (1.9, 0.45, 0.25), M["sofa2"])
-    part("armL", -0.85, 0.3, 0, (0.2, 0.6, 0.9), M["sofa2"])
-    part("armR", 0.85, 0.3, 0, (0.2, 0.6, 0.9), M["sofa2"])
-    part("cushL", -0.4, 0.5, 0.1, (0.7, 0.16, 0.55), M["sofa"])
-    part("cushR", 0.4, 0.5, 0.1, (0.7, 0.16, 0.55), M["sofa"])
-    part("pillow1", 0.5, 0.72, -0.2, (0.4, 0.4, 0.14), M["pillow"])
-    part("pillow2", -0.5, 0.72, -0.2, (0.4, 0.4, 0.14), M["throw"])
+    part("base", 0, 0.2, 0, (w, 0.22, 0.95), fabric, 0.03)
+    part("back", 0, 0.5, -0.4, (w, 0.42, 0.16), fabric, 0.04)
+    for i, dx in enumerate([-w / 4, w / 4]):
+        part(f"seat{i}", dx, 0.38, 0.06, (w / 2 - 0.03, 0.14, 0.8), fabric, 0.06)
+        part(f"backc{i}", dx, 0.6, -0.28, (w / 2 - 0.06, 0.4, 0.12), fabric, 0.05, rx=-0.15)
+    part("cushion", w / 4 - 0.1, 0.55, -0.15, (0.45, 0.42, 0.12), M["leather_tan"], 0.04, rx=-0.25)
+    for i, (dx, dz) in enumerate([(-w / 2 + 0.1, -0.35), (w / 2 - 0.1, -0.35), (-w / 2 + 0.1, 0.35), (w / 2 - 0.1, 0.35)]):
+        px, pz = P(dx, dz)
+        box(f"{name}_foot{i}", (px, 0.045, pz), (0.03, 0.09, 0.03), M["frame"], bevel=0, part="furniture", room=room)
 
 
-def chair(name, x, z, rot, room="terrace"):
+def lounge_chair(name, x, z, rot, room="living"):
+    """Barcelona-style: two tufted leather cushions on flat steel bars"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0.05)
+    soft(f"{name}_seat", (px, 0.4, pz), (0.75, 0.09, 0.75), M["leather"], r=0.03, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, -0.32)
+    soft(f"{name}_back", (px, 0.72, pz), (0.75, 0.62, 0.09), M["leather"], r=0.03, rot_z=rot, rot_x=-0.28, part="furniture", room=room)
+    for i, dx in enumerate([-0.34, 0.34]):
+        px, pz = P(dx, 0.05)
+        box(f"{name}_bar{i}", (px, 0.33, pz), (0.02, 0.03, 0.72), M["steel"], bevel=0, rot_z=rot, part="furniture", room=room)
+        px, pz = P(dx, -0.3)
+        box(f"{name}_leg{i}", (px, 0.36, pz), (0.02, 0.72, 0.03), M["steel"], bevel=0, rot_z=rot, rot_x=-0.3, part="furniture", room=room)
+        px, pz = P(dx, 0.1)
+        box(f"{name}_leg2{i}", (px, 0.17, pz), (0.02, 0.36, 0.03), M["steel"], bevel=0, rot_z=rot, rot_x=0.45, part="furniture", room=room)
+
+
+def stool(name, x, z, room="kitchen"):
+    cyl(f"{name}_seat", (x, 0.71, z), 0.17, 0.05, M["leather"], bevel=0.015, part="furniture", room=room)
+    cyl(f"{name}_ring", (x, 0.5, z), 0.16, 0.012, M["frame"], r2=0.16, verts=24, part="furniture", room=room)
+    for i in range(4):
+        a = i * math.pi / 2 + math.pi / 4
+        cyl(f"{name}_leg{i}", (x + math.cos(a) * 0.14, 0.34, z + math.sin(a) * 0.14), 0.008, 0.7, M["frame"], verts=8,
+            rot=(math.sin(a) * 0.1, math.cos(a) * 0.1, 0), part="furniture", room=room)
+
+
+def office_chair(name, x, z, rot, room="bedroom"):
     c, s = math.cos(rot), math.sin(rot)
     P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
     px, pz = P(0, 0)
-    box(f"{name}_seat", (px, 0.45, pz), (0.42, 0.04, 0.42), M["oak"], rot_z=rot, part="furniture", room=room)
-    px, pz = P(0, -0.2)
-    box(f"{name}_back", (px, 0.68, pz), (0.42, 0.45, 0.04), M["oak"], rot_z=rot, part="furniture", room=room)
-    for i, (dx, dz) in enumerate([(-0.18, -0.18), (0.18, -0.18), (-0.18, 0.18), (0.18, 0.18)]):
-        px, pz = P(dx, dz)
-        box(f"{name}_leg{i}", (px, 0.22, pz), (0.03, 0.45, 0.03), M["frame"], bevel=0, part="furniture", room=room)
+    soft(f"{name}_seat", (px, 0.47, pz), (0.5, 0.07, 0.5), M["leather"], r=0.03, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, -0.24)
+    soft(f"{name}_back", (px, 0.78, pz), (0.46, 0.58, 0.06), M["leather"], r=0.03, rot_z=rot, rot_x=-0.12, part="furniture", room=room)
+    for i, dx in enumerate([-0.27, 0.27]):
+        px, pz = P(dx, -0.05)
+        box(f"{name}_arm{i}", (px, 0.66, pz), (0.03, 0.02, 0.3), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+        box(f"{name}_armp{i}", (px, 0.56, pz), (0.02, 0.18, 0.02), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+    cx0, cz0 = P(0, 0)
+    cyl(f"{name}_post", (cx0, 0.28, cz0), 0.02, 0.36, M["steel"], verts=10, part="furniture", room=room)
+    for i in range(5):
+        a = i * math.pi * 2 / 5 + rot
+        box(f"{name}_spoke{i}", (x + math.cos(a) * 0.15, 0.04, z + math.sin(a) * 0.15), (0.3, 0.025, 0.03), M["black"], bevel=0.005,
+            rot_z=-a, part="furniture", room=room)
+        sphere(f"{name}_caster{i}", (x + math.cos(a) * 0.29, 0.03, z + math.sin(a) * 0.29), 0.028, M["frame"], sub=1, part="furniture", room=room)
 
 
-def lounger(name, x, z, room="terrace"):
-    box(f"{name}_bed", (x, 0.35, z), (0.7, 0.08, 1.3), M["linen"], bevel=0.03, part="furniture", room=room)
-    box(f"{name}_back", (x, 0.6, z - 0.85), (0.7, 0.08, 0.7), M["linen"], bevel=0.03, rot_x=-0.9, part="furniture", room=room)
-    box(f"{name}_frame", (x, 0.3, z), (0.75, 0.05, 1.35), M["oak"], part="furniture", room=room)
-    for i, (dx, dz) in enumerate([(-0.3, -0.6), (0.3, -0.6), (-0.3, 0.6), (0.3, 0.6)]):
-        box(f"{name}_leg{i}", (x + dx, 0.15, z + dz), (0.05, 0.3, 0.05), M["oak"], bevel=0, part="furniture", room=room)
+def floor_lamp(name, x, z, room="living"):
+    cyl(f"{name}_base", (x, 0.012, z), 0.16, 0.024, M["frame"], bevel=0.004, part="furniture", room=room)
+    cyl(f"{name}_pole", (x, 0.85, z), 0.012, 1.7, M["frame"], verts=10, part="furniture", room=room)
+    cyl(f"{name}_arm", (x + 0.3, 1.66, z), 0.01, 0.62, M["frame"], verts=8, rot=(0, math.radians(90), 0), part="light", room=room)
+    cyl(f"{name}_shade", (x + 0.6, 1.5, z), 0.16, 0.22, M["lamp"], r2=0.2, part="light", room=room)
+
+
+def wall_art(name, x, y, z, w, h, rot, mat_in, frame=True, room="living", depth=0.03):
+    c, s = math.cos(rot), math.sin(rot)
+    if frame:
+        box(f"{name}_frame", (x, y, z), (w, h, depth), M["frame"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_print", (x - s * depth * 0.55, y, z + c * depth * 0.55), (w - 0.06, h - 0.06, 0.006), mat_in, bevel=0,
+        rot_z=rot, part="furniture", room=room)
 
 
 F = dict(part="furniture")
 
-# ---------- living
-box("Curtain_1", (0.12, 1.15, 1.15), (0.05, 2.3, 0.6), M["linen"], bevel=0.02, room="living", **F)
-box("Curtain_2", (0.12, 1.15, 2.95), (0.05, 2.3, 0.6), M["linen"], bevel=0.02, room="living", **F)
-box("CurtainRail", (0.1, 2.35, 2.05), (0.03, 0.03, 2.0), M["frame"], bevel=0, room="living", **F)
-box("Rug_living", (1.7, 0.009, 2.1), (2.4, 0.012, 2.8), M["rug"], bevel=0.005, room="living", **F)
-sofa("Sofa_1", 1.7, 0.75, 0)
-sofa("Sofa_2", 1.7, 3.45, math.pi)
-box("CoffeeTable", (1.7, 0.4, 2.1), (1.0, 0.05, 0.5), M["walnut"], room="living", **F)
-for i, (x, z) in enumerate([(1.25, 1.9), (2.15, 1.9), (1.25, 2.3), (2.15, 2.3)]):
-    box(f"CoffeeLeg_{i}", (x, 0.2, z), (0.04, 0.4, 0.04), M["frame"], bevel=0, room="living", **F)
-box("Bowl", (1.5, 0.5, 2.1), (0.22, 0.14, 0.22), M["brass"], bevel=0.04, room="living", **F)
-plant("Plant_table", 1.95, 2.1, 0.4)
-box("TVunit", (3.0, 0.225, 0.3), (1.4, 0.45, 0.4), M["walnut"], bevel=0.02, room="living", **F)
-box("TV", (3.0, 1.15, 0.11), (1.2, 0.7, 0.04), M["screen"], bevel=0.005, room="living", **F)
-box("TVglow", (3.0, 1.15, 0.1), (0.95, 0.02, 0.05), M["tv"], bevel=0, room="living", **F)
-box("SideTable", (0.55, 0.34, 0.5), (0.4, 0.03, 0.4), M["oak"], room="living", **F)
-box("SideTableLeg", (0.55, 0.17, 0.5), (0.05, 0.34, 0.05), M["frame"], bevel=0, room="living", **F)
-plant("Plant_living", 0.55, 0.5, 0.7)
+# ---------- living: one sofa facing the TV wall, a leather lounge chair by the window, one lamp, one large print
+L = dict(room="living", **F)
+box("Rug_living", (1.75, 0.008, 2.3), (2.6, 0.012, 3.0), M["rug"], bevel=0.004, **L)
+sofa("Sofa", 1.75, 3.7, math.pi, w=2.4)                      # against the bath wall, facing north
+lounge_chair("Lounge", 0.75, 1.75, -math.pi / 2 - 0.5)        # by the window, angled toward the TV
+box("CoffeeTable", (1.75, 0.34, 2.2), (1.1, 0.03, 0.55), M["walnut"], bevel=0.006, **L)
+box("CoffeeFrame", (1.75, 0.16, 2.2), (0.9, 0.3, 0.4), M["frame"], bevel=0.004, **L)
+box("Book1", (1.55, 0.37, 2.15), (0.28, 0.025, 0.2), M["book"], bevel=0.004, **L)
+box("Book2", (1.55, 0.395, 2.17), (0.24, 0.02, 0.18), M["art"], bevel=0.004, **L)
+box("Tray", (2.1, 0.365, 2.28), (0.3, 0.015, 0.2), M["frame"], bevel=0.004, **L)
+floor_lamp("FloorLamp", 3.05, 3.85)
+# media wall on the north wall: floating walnut console, wall-mounted TV, turntable + a few records
+box("Console", (2.55, 0.42, 0.3), (1.8, 0.28, 0.42), M["walnut"], bevel=0.008, **L)
+box("ConsoleGap", (2.55, 0.42, 0.095), (1.74, 0.01, 0.005), M["frame"], bevel=0, **L)
+box("TV", (2.55, 1.35, 0.11), (1.35, 0.78, 0.035), M["screen"], bevel=0.004, **L)
+box("TVpanel", (2.55, 1.35, 0.128), (1.29, 0.72, 0.004), M["screen"], bevel=0, **L)
+box("Turntable", (3.1, 0.585, 0.3), (0.42, 0.05, 0.34), M["black"], bevel=0.006, **L)
+cyl("Platter", (3.1, 0.615, 0.3), 0.14, 0.01, M["vinyl"], **L)
+for i in range(6):
+    box(f"Record{i}", (1.8 + i * 0.012, 0.72, 0.31), (0.008, 0.31, 0.31), M["vinyl"] if i % 2 else M["book"], bevel=0, rot_z=0.06 * i, **L)
+box("Speaker1", (1.72, 0.14, 0.3), (0.16, 0.28, 0.2), M["black"], bevel=0.008, **L)
+box("Speaker2", (3.38, 0.14, 0.3), (0.16, 0.28, 0.2), M["black"], bevel=0.008, **L)
+wall_art("Art_living", 0.09, 1.55, 3.7, 0.9, 1.2, math.pi / 2, M["art2"])         # west wall, south of the window
+plant("Plant_living", 3.05, 0.55, s=1.35)
+# window dressing: a single sheer, black rail
+box("Curtain", (0.11, 1.35, 3.0), (0.04, 2.35, 0.5), M["linen"], bevel=0.015, **L)
+box("CurtainRail", (0.1, 2.5, 2.05), (0.02, 0.02, 2.1), M["frame"], bevel=0, **L)
+box("CoatRail", (1.95, 1.7, 0.09), (0.5, 0.03, 0.03), M["frame"], bevel=0, **L)
+for i in range(3):
+    box(f"Hook{i}", (1.8 + i * 0.15, 1.65, 0.11), (0.012, 0.08, 0.05), M["frame"], bevel=0, **L)
 
-# ---------- kitchen / dining
+# ---------- kitchen / dining: matte black run, quartz top, oak uppers; island with two leather stools
 K = dict(room="kitchen", **F)
-box("KitchenBase", (6.1, 0.45, 2.38), (3.4, 0.9, 0.6), M["graphite"], bevel=0.008, **K)
-box("KitchenTop", (6.1, 0.92, 2.38), (3.4, 0.04, 0.62), M["quartz"], bevel=0.008, **K)
-box("KitchenUpper", (6.1, 2.05, 2.5), (3.4, 0.7, 0.35), M["graphite"], bevel=0.008, **K)
-box("KitchenShelf", (6.1, 1.72, 2.5), (3.4, 0.04, 0.35), M["graphite"], bevel=0.005, **K)
-box("Backsplash", (6.1, 1.35, 2.71), (3.4, 0.6, 0.02), M["quartz"], bevel=0, **K)
+box("KitchenBase", (6.1, 0.44, 2.38), (3.4, 0.88, 0.6), M["black"], bevel=0.005, **K)
 for i, x in enumerate([4.9, 5.5, 6.1, 6.7, 7.3]):
-    box(f"UpperGap_{i}", (x, 2.05, 2.5), (0.02, 0.66, 0.34), M["frame"], bevel=0, **K)
-box("Sink", (5.3, 0.945, 2.38), (0.5, 0.02, 0.4), M["steel"], bevel=0.005, **K)
-box("Tap", (5.3, 1.1, 2.55), (0.02, 0.3, 0.02), M["steel"], bevel=0, **K)
-box("TapSpout", (5.24, 1.25, 2.55), (0.14, 0.02, 0.02), M["steel"], bevel=0, **K)
-box("Hob", (6.9, 0.947, 2.38), (0.6, 0.012, 0.5), M["screen"], bevel=0.004, **K)
-for i, (dx, dz) in enumerate([(-0.15, -0.12), (0.15, -0.12), (-0.15, 0.12), (0.15, 0.12)]):
-    cyl(f"Burner_{i}", (6.9 + dx, 0.96, 2.38 + dz), 0.06, 0.012, M["steel"], **K)
-box("Hood", (6.9, 1.72, 2.55), (0.7, 0.4, 0.3), M["steel"], bevel=0.01, **K)
-box("Fridge", (7.35, 0.95, 0.42), (0.7, 1.9, 0.7), M["steel"], bevel=0.015, **K)
-box("FridgeHandle", (7.02, 1.05, 0.42), (0.02, 0.9, 0.03), M["frame"], bevel=0, **K)
-box("Pantry", (6.65, 1.1, 0.37), (0.6, 2.2, 0.6), M["graphite"], bevel=0.01, **K)
-box("IslandBase", (3.9, 0.525, 1.5), (0.5, 1.05, 2.0), M["graphite"], bevel=0.01, **K)
-box("IslandTop", (3.85, 1.07, 1.5), (0.7, 0.04, 2.1), M["oak"], bevel=0.01, **K)
-for i, z in enumerate([0.85, 1.5, 2.15]):
-    box(f"StoolPost_{i}", (3.38, 0.35, z), (0.04, 0.7, 0.04), M["frame"], bevel=0, **K)
-    cyl(f"StoolSeat_{i}", (3.38, 0.72, z), 0.18, 0.06, M["walnut"], bevel=0.01, **K)
-    cyl(f"StoolBase_{i}", (3.38, 0.02, z), 0.2, 0.02, M["frame"], **K)
-box("Vase", (3.85, 1.2, 0.9), (0.2, 0.25, 0.2), M["white"], bevel=0.03, **K)
-plant("Plant_island", 3.85, 0.9, 0.4, pot=False, room="kitchen")
+    box(f"BaseGap_{i}", (x, 0.44, 2.075), (0.004, 0.84, 0.01), M["frame"], bevel=0, **K)
+box("KitchenTop", (6.1, 0.9, 2.38), (3.44, 0.03, 0.63), M["quartz"], bevel=0.006, **K)
+box("Backsplash", (6.1, 1.28, 2.71), (3.4, 0.7, 0.02), M["quartz"], bevel=0, **K)
+box("KitchenUpper", (6.1, 2.1, 2.55), (3.4, 0.7, 0.35), M["oak"], bevel=0.005, **K)
+for i, x in enumerate([4.9, 5.5, 6.1, 6.7, 7.3]):
+    box(f"UpperGap_{i}", (x, 2.1, 2.373), (0.004, 0.66, 0.01), M["frame"], bevel=0, **K)
+box("UpperLED", (6.1, 1.745, 2.5), (3.3, 0.01, 0.2), M["downlight"], bevel=0, part="light", room="kitchen")
+box("Sink", (5.2, 0.905, 2.4), (0.55, 0.02, 0.4), M["steel"], bevel=0.005, **K)
+box("Tap", (5.2, 1.06, 2.6), (0.018, 0.32, 0.018), M["frame"], bevel=0, **K)
+box("TapSpout", (5.13, 1.21, 2.6), (0.16, 0.018, 0.018), M["frame"], bevel=0, **K)
+box("Hob", (6.8, 0.912, 2.4), (0.6, 0.008, 0.5), M["screen"], bevel=0.003, **K)
+box("Hood", (6.8, 1.9, 2.55), (0.7, 0.06, 0.35), M["steel"], bevel=0.006, **K)
+box("Column", (7.15, 1.1, 0.42), (1.3, 2.2, 0.66), M["black"], bevel=0.006, **K)     # integrated fridge + pantry
+box("ColumnGap1", (7.15, 1.1, 0.087), (0.004, 2.16, 0.01), M["frame"], bevel=0, **K)
+box("ColumnGap2", (7.15, 1.55, 0.087), (1.26, 0.004, 0.01), M["frame"], bevel=0, **K)
+box("IslandBase", (3.95, 0.44, 1.5), (0.55, 0.88, 2.0), M["black"], bevel=0.005, **K)
+box("IslandTop", (3.85, 0.905, 1.5), (0.9, 0.035, 2.1), M["oak"], bevel=0.006, **K)
+stool("Stool1", 3.36, 1.15)
+stool("Stool2", 3.36, 1.85)
+box("Board", (4.05, 0.93, 0.85), (0.32, 0.015, 0.22), M["walnut"], bevel=0.003, **K)
+cyl("Bowl", (4.0, 0.96, 2.05), 0.13, 0.08, M["black"], r2=0.08, bevel=0.01, **K)
 for i, z in enumerate([1.1, 1.9]):
-    box(f"PendantCord_{i}", (3.85, 2.1, z), (0.01, 1.0, 0.01), M["frame"], bevel=0, **K)
-    cyl(f"Pendant_{i}", (3.85, 1.58, z), 0.1, 0.18, M["pendant"], r2=0.16, part="light", room="kitchen")
+    cyl(f"PendantCord_{i}", (3.85, 2.1, z), 0.003, 1.0, M["frame"], verts=6, **K)
+    cyl(f"Pendant_{i}", (3.85, 1.55, z), 0.07, 0.24, M["pendant"], r2=0.09, part="light", room="kitchen")
 
-# ---------- bedroom
-Bd = dict(room="bedroom", **F)
-box("BedFrame", (5.4, 0.14, 4.85), (1.7, 0.28, 2.1), M["walnut"], bevel=0.02, **Bd)
-box("Mattress", (5.4, 0.39, 4.85), (1.6, 0.22, 2.0), M["linen"], bevel=0.05, **Bd)
-box("Duvet", (5.4, 0.52, 4.5), (1.62, 0.05, 1.3), M["throw"], bevel=0.02, **Bd)
-box("Headboard", (5.4, 0.75, 5.87), (1.7, 0.9, 0.1), M["sofa"], bevel=0.02, **Bd)
-box("PillowL", (5.0, 0.6, 5.6), (0.65, 0.18, 0.4), M["linen"], bevel=0.05, **Bd)
-box("PillowR", (5.8, 0.6, 5.6), (0.65, 0.18, 0.4), M["linen"], bevel=0.05, **Bd)
-box("PillowAccent", (5.0, 0.58, 5.33), (0.45, 0.16, 0.14), M["pillow"], bevel=0.04, **Bd)
-for i, x in enumerate([4.35, 6.45]):
-    box(f"Nightstand_{i}", (x, 0.25, 5.65), (0.45, 0.5, 0.45), M["oak"], bevel=0.015, **Bd)
-    box(f"LampStem_{i}", (x, 0.68, 5.65), (0.03, 0.35, 0.03), M["brass"], bevel=0, **Bd)
-    cyl(f"LampShade_{i}", (x, 0.88, 5.65), 0.12, 0.2, M["lamp"], r2=0.15, part="light", room="bedroom")
-box("Wardrobe", (3.72, 1.15, 4.9), (0.6, 2.3, 1.9), M["oak"], bevel=0.012, **Bd)
+# ---------- bedroom: low platform bed, wide charcoal headboard, floating nightstands, walnut desk, one big plant
+B = dict(room="bedroom", **F)
+box("Rug_bedroom", (5.45, 0.008, 4.0), (2.6, 0.012, 1.6), M["rug_dark"], bevel=0.004, **B)
+box("BedPlatform", (5.45, 0.13, 4.95), (2.0, 0.24, 2.2), M["walnut"], bevel=0.01, **B)
+soft("Mattress", (5.45, 0.36, 4.95), (1.6, 0.24, 2.0), M["linen"], r=0.05, **B)
+soft("Duvet", (5.45, 0.5, 4.6), (1.64, 0.07, 1.25), M["charcoal"], r=0.03, **B)
+box("Headboard", (5.45, 0.65, 5.86), (2.6, 1.1, 0.06), M["charcoal"], bevel=0.01, **B)
+soft("PillowL", (5.05, 0.55, 5.62), (0.68, 0.16, 0.42), M["linen"], r=0.05, **B)
+soft("PillowR", (5.85, 0.55, 5.62), (0.68, 0.16, 0.42), M["linen"], r=0.05, **B)
+for i, x in enumerate([4.15, 6.75]):
+    box(f"Nightstand_{i}", (x, 0.45, 5.7), (0.45, 0.12, 0.38), M["walnut"], bevel=0.006, **B)
+    box(f"WallLampArm_{i}", (x, 1.15, 5.88), (0.02, 0.02, 0.14), M["frame"], bevel=0, **B)
+    cyl(f"WallLamp_{i}", (x, 1.1, 5.78), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
+box("Wardrobe", (3.7, 1.15, 4.9), (0.6, 2.3, 1.9), M["black"], bevel=0.006, **B)
 for i, z in enumerate([4.2, 4.7, 5.2, 5.7]):
-    box(f"WardrobeGap_{i}", (4.03, 1.15, z), (0.02, 2.2, 0.02), M["walnut"], bevel=0, **Bd)
-for i, z in enumerate([4.45, 5.45]):
-    box(f"WardrobeHandle_{i}", (4.04, 1.1, z), (0.03, 0.25, 0.02), M["brass"], bevel=0, **Bd)
-box("Desk", (7.0, 0.74, 3.1), (1.2, 0.04, 0.55), M["oak"], **Bd)
-box("DeskLegL", (6.45, 0.36, 3.1), (0.04, 0.72, 0.5), M["frame"], bevel=0, **Bd)
-box("DeskLegR", (7.55, 0.36, 3.1), (0.04, 0.72, 0.5), M["frame"], bevel=0, **Bd)
-box("Laptop", (7.0, 0.77, 3.1), (0.4, 0.02, 0.28), M["steel"], bevel=0.004, **Bd)
-box("LaptopScreen", (7.0, 0.9, 2.97), (0.4, 0.26, 0.01), M["screen"], bevel=0, **Bd)
-box("DeskChairSeat", (7.0, 0.45, 3.6), (0.45, 0.05, 0.45), M["frame"], bevel=0.02, **Bd)
-box("DeskChairBack", (7.0, 0.72, 3.8), (0.45, 0.5, 0.05), M["frame"], bevel=0.02, **Bd)
-box("DeskChairPost", (7.0, 0.22, 3.6), (0.04, 0.43, 0.04), M["steel"], bevel=0, **Bd)
-box("Rug_bedroom", (5.4, 0.009, 3.85), (2.2, 0.012, 1.5), M["rug"], bevel=0.005, **Bd)
-plant("Plant_bedroom", 7.4, 5.5, 0.9, room="bedroom")
-box("ArtFrame", (5.4, 1.7, 5.88), (0.7, 0.5, 0.03), M["frame"], bevel=0.004, **Bd)
-box("Art", (5.4, 1.7, 5.865), (0.62, 0.42, 0.01), M["art"], bevel=0, **Bd)
+    box(f"WardrobeGap_{i}", (4.003, 1.15, z), (0.01, 2.26, 0.004), M["frame"], bevel=0, **B)
+box("Desk", (7.05, 0.74, 3.15), (1.3, 0.03, 0.6), M["walnut"], bevel=0.005, **B)
+for i, x in enumerate([6.45, 7.65]):
+    box(f"DeskLeg_{i}", (x, 0.36, 3.15), (0.03, 0.72, 0.55), M["frame"], bevel=0, **B)
+box("Monitor", (7.05, 1.05, 2.95), (0.62, 0.36, 0.02), M["screen"], bevel=0.003, **B)
+box("MonitorStand", (7.05, 0.83, 2.95), (0.03, 0.14, 0.03), M["frame"], bevel=0, **B)
+box("MonitorFoot", (7.05, 0.76, 2.95), (0.2, 0.01, 0.12), M["frame"], bevel=0.003, **B)
+box("Keyboard", (7.05, 0.765, 3.25), (0.36, 0.012, 0.12), M["black"], bevel=0.003, **B)
+box("DeskLamp", (7.55, 0.76, 2.98), (0.03, 0.03, 0.03), M["frame"], bevel=0, **B)
+office_chair("DeskChair", 7.05, 3.75, math.pi)
+plant("Plant_bedroom", 7.35, 5.5, s=1.5)
+wall_art("Art_bedroom", 5.45, 1.75, 5.88, 1.5, 0.6, 0, M["art2"], room="bedroom")
 
-# ---------- bathroom
+# ---------- bathroom: black fixtures, walnut vanity, white basin
 Ba = dict(room="bath", **F)
-box("ShowerGlass", (0.55, 1.1, 5.2), (0.02, 2.2, 1.4), M["glass"], "Glass", bevel=0, part="glass", side="I", room="bath")
-box("ShowerPost", (0.55, 1.1, 4.5), (0.03, 2.2, 0.03), M["frame"], bevel=0, **Ba)
-box("ShowerPipe", (0.1, 1.5, 4.6), (0.03, 1.2, 0.03), M["steel"], bevel=0, **Ba)
-box("ShowerHead", (0.2, 2.1, 4.75), (0.2, 0.02, 0.2), M["steel"], bevel=0.005, **Ba)
-box("Toilet", (0.95, 0.2, 5.62), (0.38, 0.4, 0.55), M["white"], bevel=0.05, **Ba)
-box("Cistern", (0.95, 0.6, 5.82), (0.38, 0.4, 0.18), M["white"], bevel=0.03, **Ba)
-box("Vanity", (1.65, 0.4, 5.7), (0.6, 0.8, 0.45), M["oak"], bevel=0.01, **Ba)
-box("VanityTop", (1.65, 0.82, 5.7), (0.62, 0.04, 0.47), M["quartz"], bevel=0.006, **Ba)
-box("Basin", (1.65, 0.9, 5.7), (0.4, 0.12, 0.3), M["white"], bevel=0.04, **Ba)
-box("BasinTap", (1.65, 1.0, 5.85), (0.03, 0.2, 0.03), M["steel"], bevel=0, **Ba)
-box("Mirror", (1.65, 1.6, 5.92), (0.55, 0.7, 0.02), M["steel"], bevel=0, **Ba)
-box("TowelRail", (1.7, 1.3, 4.54), (0.3, 0.5, 0.03), M["white"], bevel=0.01, **Ba)
+box("ShowerGlass", (0.55, 1.1, 5.2), (0.01, 2.2, 1.4), M["glass"], "Glass", bevel=0, part="glass", side="I", room="bath")
+box("ShowerPost", (0.55, 1.1, 4.5), (0.025, 2.2, 0.025), M["frame"], bevel=0, **Ba)
+box("ShowerPipe", (0.08, 1.5, 4.6), (0.02, 1.2, 0.02), M["frame"], bevel=0, **Ba)
+box("ShowerHead", (0.2, 2.15, 4.75), (0.25, 0.012, 0.25), M["frame"], bevel=0.003, **Ba)
+box("ShowerArm", (0.15, 2.15, 4.62), (0.14, 0.012, 0.012), M["frame"], bevel=0, **Ba)
+soft("Toilet", (0.95, 0.2, 5.62), (0.38, 0.4, 0.55), M["white"], r=0.06, **Ba)
+soft("Cistern", (0.95, 0.6, 5.82), (0.38, 0.4, 0.18), M["white"], r=0.03, **Ba)
+box("Vanity", (1.6, 0.5, 5.7), (0.7, 0.35, 0.45), M["walnut"], bevel=0.006, **Ba)
+box("VanityTop", (1.6, 0.69, 5.7), (0.72, 0.03, 0.47), M["quartz"], bevel=0.004, **Ba)
+soft("Basin", (1.6, 0.76, 5.68), (0.42, 0.11, 0.32), M["white"], r=0.04, **Ba)
+box("BasinTap", (1.6, 0.9, 5.86), (0.02, 0.2, 0.02), M["frame"], bevel=0, **Ba)
+box("Mirror", (1.6, 1.55, 5.92), (0.6, 0.8, 0.015), M["steel"], bevel=0, **Ba)
+box("MirrorFrame", (1.6, 1.55, 5.915), (0.64, 0.84, 0.01), M["frame"], bevel=0, **Ba)
+box("TowelRail", (1.7, 1.2, 4.53), (0.5, 0.015, 0.015), M["frame"], bevel=0, **Ba)
+soft("Towel", (1.7, 1.0, 4.55), (0.3, 0.4, 0.03), M["towel"], r=0.01, **Ba)
 
 # ---------- service
 Sv = dict(room="service", **F)
-box("Washer", (2.4, 0.425, 5.62), (0.6, 0.85, 0.6), M["white"], bevel=0.02, **Sv)
-cyl("WasherDoor", (2.4, 0.45, 5.31), 0.19, 0.03, M["frame"], **Sv)
-box("ShelfA", (2.7, 1.6, 5.75), (0.5, 0.02, 0.4), M["oak"], **Sv)
-box("ShelfB", (2.7, 2.0, 5.75), (0.5, 0.02, 0.4), M["oak"], **Sv)
-box("Detergent", (2.6, 1.77, 5.75), (0.2, 0.3, 0.15), M["white"], bevel=0.02, **Sv)
-box("Boiler", (3.05, 0.425, 5.65), (0.5, 0.85, 0.45), M["white"], bevel=0.02, **Sv)
-box("BoilerTop", (3.05, 0.9, 5.65), (0.4, 0.1, 0.35), M["steel"], bevel=0.01, **Sv)
+box("Washer", (2.4, 0.425, 5.62), (0.6, 0.85, 0.6), M["white"], bevel=0.015, **Sv)
+cyl("WasherDoor", (2.4, 0.45, 5.31), 0.19, 0.02, M["screen"], rot=(math.radians(90), 0, 0), **Sv)
+box("ShelfA", (2.7, 1.5, 5.75), (0.7, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
+box("ShelfB", (2.7, 1.95, 5.75), (0.7, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
+box("Basket", (2.55, 1.62, 5.75), (0.28, 0.22, 0.28), M["black"], bevel=0.01, **Sv)
+box("Boiler", (3.05, 0.45, 5.65), (0.5, 0.9, 0.45), M["white"], bevel=0.015, **Sv)
 
-# ---------- terrace
+# ---------- terrace: outdoor lounge set, one lounger, black planters with grasses, olive trees
 Tr = dict(room="terrace", **F)
-for i, x in enumerate([8.3, 9.15, 10.0, 10.85, 11.7, 12.55]):
-    box(f"Planter_{i}", (x, 0.2, 5.6), (0.6, 0.4, 0.4), M["pot"], bevel=0.02, **Tr)
-    plant(f"PlanterPlant_{i}", x, 5.6, 0.7, pot=False, room="terrace")
-lounger("Lounger_1", 11.6, 3.2)
-lounger("Lounger_2", 10.6, 3.2)
-cyl("BistroTop", (9.0, 0.74, 1.3), 0.4, 0.04, M["oak"], bevel=0.01, **Tr)
-box("BistroPost", (9.0, 0.36, 1.3), (0.06, 0.72, 0.06), M["frame"], bevel=0, **Tr)
-cyl("BistroBase", (9.0, 0.015, 1.3), 0.25, 0.03, M["frame"], **Tr)
-chair("Chair_1", 8.3, 1.3, math.pi / 2)
-chair("Chair_2", 9.7, 1.3, -math.pi / 2)
-plant("Plant_terrace_1", 12.3, 0.5, 1.5, room="terrace")
-plant("Plant_terrace_2", 8.2, 0.5, 1.2, room="terrace")
-plant("Plant_terrace_3", 12.3, 5.0, 1.0, room="terrace")
-box("WallLight", (10.3, 2.0, 0.08), (0.12, 0.25, 0.12), M["frame"], bevel=0.01, part="light", room="terrace")
-box("Rug_terrace", (11.0, 0.009, 3.2), (3.0, 0.012, 2.2), M["rug2"], bevel=0.005, **Tr)
+box("Rug_terrace", (10.3, 0.006, 3.0), (3.4, 0.012, 2.4), M["rug"], bevel=0.004, **Tr)
+sofa("OutdoorSofa", 10.3, 4.05, math.pi, w=2.0, fabric=M["linen"], room="terrace")
+box("OutdoorTable", (10.3, 0.3, 2.6), (0.9, 0.04, 0.5), M["walnut"], bevel=0.006, **Tr)
+box("OutdoorTableFrame", (10.3, 0.14, 2.6), (0.8, 0.26, 0.4), M["frame"], bevel=0.004, **Tr)
+for i, (x, z, r) in enumerate([(8.9, 2.3, -math.pi / 2), (11.7, 2.3, math.pi / 2)]):
+    lounge_chair(f"OutdoorChair{i}", x, z, r, room="terrace")
+box("LoungerBed", (11.9, 0.3, 0.9), (0.7, 0.08, 1.5), M["linen"], bevel=0.03, segments=5, **Tr)
+box("LoungerBack", (11.9, 0.55, 0.2), (0.7, 0.08, 0.7), M["linen"], bevel=0.03, segments=5, rot_x=1.0, **Tr)
+box("LoungerFrame", (11.9, 0.24, 0.85), (0.74, 0.04, 1.6), M["frame"], bevel=0.004, **Tr)
+for i, (dx, dz) in enumerate([(-0.33, -0.7), (0.33, -0.7), (-0.33, 0.7), (0.33, 0.7)]):
+    box(f"LoungerLeg{i}", (11.9 + dx, 0.11, 0.85 + dz), (0.03, 0.22, 0.03), M["frame"], bevel=0, **Tr)
+for i, x in enumerate([8.35, 9.35, 10.35, 11.35, 12.35]):
+    box(f"Planter_{i}", (x, 0.2, 5.62), (0.8, 0.4, 0.38), M["pot_black"], bevel=0.01, **Tr)
+    grass(f"Grass_{i}", x, 5.62, s=1.0)
+plant("Olive_1", 12.3, 0.5, s=1.6, pot="black", room="terrace", leaves=48)
+plant("Olive_2", 8.3, 0.5, s=1.3, pot="black", room="terrace", leaves=40)
+box("WallLight", (10.3, 2.0, 0.08), (0.1, 0.22, 0.1), M["frame"], bevel=0.008, part="light", room="terrace")
+box("WallLightGlow", (10.3, 2.0, 0.14), (0.06, 0.16, 0.02), M["downlight"], bevel=0, part="light", room="terrace")
 
 # ----------------------------------------------------------------------------- export
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -455,7 +622,8 @@ bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(
     filepath=OUT, export_format="GLB", export_apply=True, export_extras=True,
     export_yup=True, export_lights=False, export_cameras=False, export_animations=False,
-    export_materials="EXPORT", export_normals=True, use_selection=False,
+    export_materials="EXPORT", export_normals=True, export_image_format="AUTO", export_jpeg_quality=82,
+    use_selection=False,
 )
 print("exported", OUT, os.path.getsize(OUT) // 1024, "KB", "objects:", len(bpy.data.objects))
 

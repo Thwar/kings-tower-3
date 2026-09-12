@@ -29,7 +29,7 @@ VIEWS = [
     ("whole",   (-7.5, 11.5, 16.5), (6.2, 0.5, 3.0), 30, "SW"),
     ("living",  (-6.0, 5.0, 5.0),  (2.8, 0.6, 2.2), 40, "SW"),
     ("kitchen", (9.0, 6.0, -5.5),  (5.3, 0.7, 1.7), 40, "N"),
-    ("bedroom", (7.8, 6.8, 12.5),  (5.4, 0.5, 4.5), 40, "S"),
+    ("bedroom", (6.2, 9.5, 11.0),  (5.5, 0.3, 4.4), 40, "S"),
     ("bath",    (-3.5, 4.0, 9.0),  (1.0, 0.8, 5.0), 42, "SW"),
     ("terrace", (17.0, 5.0, -2.5), (10.3, 0.8, 3.0), 42, "NE"),
     ("service", (2.6, 5.0, 12.0),  (2.55, 0.6, 5.3), 40, "S"),
@@ -72,7 +72,8 @@ scene.render.image_settings.file_format = "JPEG"
 scene.render.image_settings.quality = 88
 scene.render.film_transparent = False
 scene.view_settings.view_transform = "AgX"
-scene.view_settings.look = "AgX - Punchy"
+scene.view_settings.look = "AgX - Base Contrast"
+scene.view_settings.exposure = 0.35
 
 cam_data = bpy.data.cameras.new("Cam")
 cam = bpy.data.objects.new("Cam", cam_data)

@@ -19,15 +19,23 @@ python3 blender/build_apartment.py --blend        # also writes blender/apartmen
 python3 blender/render_views.py [--fast]          # Cycles renders → site/renders/*.jpg (the "Blender renders" tab)
 ```
 
+Materials are PBR image textures (oak planks, plaster, concrete, charcoal linen, leather, quartz, tiles, paving…) generated
+procedurally by `blender/textures.py` — seamless, deterministic, no downloads — and box-projected in world space so grain and
+tiles line up across pieces. Delete `blender/tex/` to regenerate them.
+
 Every object carries custom properties (`part`, `side`, `room`) that survive glTF export as extras; the viewer uses `side`
 to hide whichever exterior walls face the camera (the cutaway) and `part` to toggle the ceiling.
+
+Interior concept: a minimal bachelor pad — warm off-white plaster, mid-oak floor, matte black + walnut, charcoal linen and
+black leather, one statement piece per room.
 
 Dimensions come from the plan: 50.21 m² interior + 29.75 m² terrace, 2.6 m ceilings. Furniture is approximate.
 
 ## The viewer (`site/`)
 
 Plain HTML + three.js (vendored in `site/vendor`, no build step). Viewpoints, stats and labels live at the top of `site/app.js`.
-Query params help while tuning lights: `?env=0.3&sun=4.5&exp=1`.
+Desktop gets ground-truth ambient occlusion (GTAO) through a small post-processing chain; phones render directly for speed
+(`?ao=1` forces it on). Query params help while tuning lights: `?env=0.4&sun=4.5&exp=1`.
 
 ## The walkthrough (`src/`)
 

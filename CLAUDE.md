@@ -8,6 +8,8 @@ Two apps, one Pages deploy (see README):
 - `blender/build_apartment.py` — the model. Change geometry/materials there, re-run it, commit the new `site/apartment.glb`.
   Rules baked in: never let two boxes overlap with coincident faces (renders black in Cycles, z-fights in WebGL); wall segments
   take `ext=(start, end)` flags and only extend into corners, never into openings.
+- `blender/textures.py` — procedural seamless PBR sets (numpy → jpg via bpy), cached in `blender/tex/`. Add a set there, then
+  `tmat(...)` it in the build script; UVs are box-projected automatically from the set's tile size.
 - `blender/render_views.py` — Cycles renders for the "Blender renders" tab; `--fast` for previews. Commit the JPGs.
 - `src/` — the older first-person walkthrough (Vite + React Three Fiber), built to `dist/walk`. Keep `npm run build` green.
 

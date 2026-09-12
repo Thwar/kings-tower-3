@@ -2,6 +2,10 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { walls as PLAN_WALLS, rooms as PLAN_ROOMS, BOUNDS as PLAN, roomAt, T as WALL_T } from './plan.js'
 
 // ------------------------------------------------------------------ viewpoints
@@ -14,7 +18,7 @@ const VIEWS = [
   { key: 'kitchen', name: 'Kitchen & dining', room: 'Kitchen & dining', area: '≈ 12 m²',  title: 'Cook, eat, repeat.',
     pos: [9.0, 6.0, -5.5], target: [5.3, 0.7, 1.7], walk: [5.9, 0.75, Math.PI] },
   { key: 'bedroom', name: 'Bedroom',         room: 'Bedroom',           area: '≈ 12 m²',  title: 'Quiet corner.',
-    pos: [7.8, 6.8, 12.5], target: [5.4, 0.5, 4.5], walk: [5.3, 3.25, Math.PI] },
+    pos: [6.2, 9.5, 11.0], target: [5.5, 0.3, 4.4], walk: [5.3, 3.25, Math.PI] },
   { key: 'bath',    name: 'Bathroom',        room: 'Bathroom',          area: '≈ 3.5 m²', title: 'Walk-in shower.',
     pos: [-3.5, 4.0, 9.0], target: [1.0, 0.8, 5.0], walk: [1.55, 4.75, Math.PI * 0.75] },
   { key: 'service', name: 'Service area',    room: 'Service area',      area: '≈ 2 m²',   title: 'Laundry, tucked away.',
@@ -41,7 +45,7 @@ const scene = new THREE.Scene()
 scene.background = new THREE.Color('#616a75')
 const pmrem = new THREE.PMREMGenerator(renderer)
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-scene.environmentIntensity = +(q.get('env') ?? 0.3)
+scene.environmentIntensity = +(q.get('env') ?? 0.4)
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200)
 camera.position.set(...VIEWS[0].pos)
@@ -65,6 +69,22 @@ ground.rotation.x = -Math.PI / 2
 ground.position.y = -0.33
 ground.receiveShadow = true
 scene.add(ground)
+
+// ------------------------------------------------------------------ post-processing (ambient occlusion, desktop only)
+// GTAO gives the contact shadows under furniture and in wall corners that make the flat-lit model read as solid.
+const useAO = q.get('ao') ? q.get('ao') !== '0' : !matchMedia('(pointer:coarse)').matches
+let composer = null, gtao = null
+if (useAO) {
+  composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }))
+  composer.addPass(new RenderPass(scene, camera))
+  gtao = new GTAOPass(scene, camera, 1, 1)
+  gtao.output = GTAOPass.OUTPUT.Default
+  gtao.blendIntensity = 0.9
+  gtao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1, thickness: 1, scale: 1.2, samples: 16, distanceFallOff: 1, screenSpaceRadius: false })
+  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 })
+  composer.addPass(gtao)
+  composer.addPass(new OutputPass())
+}
 
 // ------------------------------------------------------------------ controls
 const controls = new OrbitControls(camera, canvas)
@@ -350,6 +370,7 @@ function resize() {
     renderer.setSize(w, h, false)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+    if (composer) { composer.setSize(w, h); gtao.setSize(w, h) }
   }
 }
 new ResizeObserver(resize).observe(canvas)
@@ -368,5 +389,5 @@ renderer.setAnimationLoop(now => {
   if (state.mode === 'walk') stepWalk(dt); else controls.update()
   applyCutaway()
   drawMinimap()
-  renderer.render(scene, camera)
+  if (composer) composer.render(); else renderer.render(scene, camera)
 })
