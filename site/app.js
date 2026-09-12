@@ -74,20 +74,41 @@ ground.position.y = -0.33
 ground.receiveShadow = true
 scene.add(ground)
 
-// ------------------------------------------------------------------ post-processing (ambient occlusion, desktop only)
-// GTAO gives the contact shadows under furniture and in wall corners that make the flat-lit model read as solid.
-const useAO = q.get('ao') ? q.get('ao') !== '0' : !matchMedia('(pointer:coarse)').matches
-let composer = null, gtao = null
-if (useAO) {
-  composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }))
-  composer.addPass(new RenderPass(scene, camera))
-  gtao = new GTAOPass(scene, camera, 1, 1)
-  gtao.output = GTAOPass.OUTPUT.Default
-  gtao.blendIntensity = 0.9
-  gtao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1, thickness: 1, scale: 1.2, samples: 8, distanceFallOff: 1, screenSpaceRadius: false })
-  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 8 })
-  composer.addPass(gtao)
-  composer.addPass(new OutputPass())
+// ------------------------------------------------------------------ post-processing (ambient occlusion, opt-in)
+// GTAO gives contact shadows in corners but costs a second full scene pass plus several screen passes,
+// which is the difference between 60 and 15 fps on integrated GPUs. Off by default; the "High quality" toggle
+// (or ?ao=1) enables it, and the composer is built lazily the first time it is needed.
+let composer = null, gtao = null, aoOn = false
+function setAO(on) {
+  aoOn = on
+  if (on && !composer) {
+    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }))
+    composer.addPass(new RenderPass(scene, camera))
+    gtao = new GTAOPass(scene, camera, 1, 1)
+    gtao.output = GTAOPass.OUTPUT.Default
+    gtao.blendIntensity = 0.9
+    gtao.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1, thickness: 1, scale: 1.2, samples: 8, distanceFallOff: 1, screenSpaceRadius: false })
+    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 8 })
+    composer.addPass(gtao)
+    composer.addPass(new OutputPass())
+    const w = canvas.clientWidth, h = canvas.clientHeight
+    composer.setSize(w, h); gtao.setSize(w, h)
+  }
+  dirty = true
+}
+
+// adaptive resolution: if rendered frames stay slow, step the pixel ratio down (never back up, to avoid flicker)
+const DPR_STEPS = [Math.min(devicePixelRatio, 1.5), 1.25, 1]
+let dprIndex = 0, slowFrames = 0, lastFrameStart = 0
+function noteFrameTime(ms) {
+  if (ms > 24) slowFrames++; else slowFrames = Math.max(0, slowFrames - 1)
+  if (slowFrames > 40 && dprIndex < DPR_STEPS.length - 1) {
+    dprIndex++; slowFrames = 0
+    renderer.setPixelRatio(DPR_STEPS[dprIndex])
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
+    if (composer) { composer.setSize(canvas.clientWidth, canvas.clientHeight); gtao.setSize(canvas.clientWidth, canvas.clientHeight) }
+    dirty = true
+  }
 }
 
 // ------------------------------------------------------------------ controls
@@ -324,6 +345,8 @@ resize(); camera.position.copy(framed(VIEWS[0].pos, VIEWS[0].target)); controls.
 $('#tgCut').addEventListener('change', e => { state.cutaway = e.target.checked; applyCutaway(true) })
 $('#tgCeil').addEventListener('change', e => { state.ceiling = e.target.checked; applyCutaway(true) })
 $('#tgSpin').addEventListener('change', e => { controls.autoRotate = e.target.checked; dirty = true })
+$('#tgAO').addEventListener('change', e => setAO(e.target.checked))
+if (q.get('ao') === '1') { $('#tgAO').checked = true; setAO(true) }
 document.querySelectorAll('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
@@ -467,5 +490,8 @@ renderer.setAnimationLoop(now => {
   if (!dirty) return   // nothing changed: skip the frame entirely (idle costs nothing)
   dirty = false
   drawMinimap()
-  if (composer) composer.render(); else renderer.render(scene, camera)
+  if (aoOn && composer) composer.render(); else renderer.render(scene, camera)
+  // frame pacing is only meaningful across consecutive rendered frames (GPU work is async, so CPU timing of render() is not)
+  if (now - lastFrameStart < 100) noteFrameTime(now - lastFrameStart)
+  lastFrameStart = now
 })
