@@ -285,8 +285,10 @@ walls = [
     # interior
     (3.35, 2.75, 7.8, 2.75, "I", dict(**X)),
     (3.35, 2.75, 3.35, 2.95, "I", dict(ext=(True, False))), (3.35, 3.85, 3.35, 5.95, "I", dict(ext=(False, True))),
-    (-0.4, 4.45, 0.25, 4.45, "I", dict(ext=(True, False))), (1.15, 4.45, 2.25, 4.45, "I", {}), (3.15, 4.45, 3.35, 4.45, "I", dict(ext=(False, True))),
-    (2.05, 4.45, 2.05, 5.95, "I", dict(**X)),
+    # bath + service wall: one door from the living into the service room (x 2.2–3.05); no door into the bath from the living
+    (-0.4, 4.45, 2.2, 4.45, "I", dict(ext=(True, False))), (3.05, 4.45, 3.35, 4.45, "I", dict(ext=(False, True))),
+    # bath/service partition with the bathroom door (z 4.6–5.4) reached from inside the service room
+    (2.05, 4.45, 2.05, 4.6, "I", dict(ext=(True, False))), (2.05, 5.4, 2.05, 5.95, "I", dict(ext=(False, True))),
     # east wall of the living room with two terrace openings
     (7.8, 0, 7.8, 0.35, "I", dict(ext=(True, False))), (7.8, 1.85, 7.8, 3.95, "I", {}), (7.8, 5.55, 7.8, 5.95, "I", dict(ext=(False, True))),
     (7.8, 0.35, 7.8, 1.85, "I", dict(y0=2.25, y1=H, noskirt=True)),
@@ -354,8 +356,8 @@ for i, x in enumerate([7.9, 9.15, 10.4, 11.65, 12.75]):
 box("SlideLeaf_1", (7.86, 1.12, 1.5), (0.03, 2.2, 0.7), M["glass"], "Glass", bevel=0, part="glass", side="I")
 box("SlideLeaf_2", (7.86, 1.12, 5.2), (0.03, 2.2, 0.7), M["glass"], "Glass", bevel=0, part="glass", side="I")
 box("Door_bedroom", (3.42, 1.05, 4.28), (0.04, 2.1, 0.85), M["walnut"], "Furniture", part="furniture", room="bedroom")
-box("Door_bath", (0.7, 1.05, 4.52), (0.85, 2.1, 0.04), M["walnut"], "Furniture", part="furniture", room="bath")
-box("Door_service", (2.7, 1.05, 4.52), (0.85, 2.1, 0.04), M["walnut"], "Furniture", part="furniture", room="service")
+box("Door_service", (2.63, 1.05, 4.52), (0.82, 2.1, 0.04), M["walnut"], "Furniture", part="furniture", room="service")   # open, flat inside the service room
+box("Door_bath", (2.12, 1.05, 5.0), (0.04, 2.1, 0.78), M["walnut"], "Furniture", part="furniture", room="bath")        # open, flat against the partition
 box("Door_entry", (1.25, 1.05, 0.08), (0.9, 2.1, 0.05), M["black"], "Furniture", part="furniture", room="living")
 box("Door_handle", (1.58, 1.02, 0.13), (0.02, 0.3, 0.02), M["frame"], "Furniture", bevel=0.005, part="furniture", room="living")
 
@@ -539,15 +541,17 @@ box("Hood", (6.8, 1.66, 2.55), (0.7, 0.06, 0.35), M["steel"], bevel=0.006, **K)
 box("Column", (7.15, 1.1, 0.42), (1.3, 2.2, 0.66), M["black"], bevel=0.006, **K)     # integrated fridge + pantry
 box("ColumnGap1", (7.15, 1.1, 0.087), (0.004, 2.16, 0.01), M["frame"], bevel=0, **K)
 box("ColumnGap2", (7.15, 1.55, 0.087), (1.26, 0.004, 0.01), M["frame"], bevel=0, **K)
-box("IslandBase", (3.95, 0.44, 1.5), (0.55, 0.88, 2.0), M["black"], bevel=0.005, **K)
-box("IslandTop", (3.85, 0.905, 1.5), (0.9, 0.035, 2.1), M["oak"], bevel=0.006, **K)
-stool("Stool1", 3.36, 1.15)
-stool("Stool2", 3.36, 1.85)
-box("Board", (4.05, 0.93, 0.85), (0.32, 0.015, 0.22), M["walnut"], bevel=0.003, **K)
-cyl("Bowl", (4.0, 0.96, 2.05), 0.13, 0.08, M["black"], r2=0.08, bevel=0.01, **K)
-for i, z in enumerate([1.1, 1.9]):
-    cyl(f"PendantCord_{i}", (3.85, 2.1, z), 0.003, 1.0, M["frame"], verts=6, **K)
-    cyl(f"Pendant_{i}", (3.85, 1.55, z), 0.07, 0.24, M["pendant"], r2=0.09, part="light", room="kitchen")
+# breakfast bar: the L return of the kitchen run, as on the plan (bar at x≈4.6, stools on the living side, ~1 m walkway to the living)
+box("BarBase", (4.62, 0.44, 1.75), (0.5, 0.88, 1.95), M["black"], bevel=0.005, **K)
+box("BarTop", (4.5, 0.905, 1.75), (0.85, 0.035, 2.05), M["oak"], bevel=0.006, **K)
+stool("Stool1", 4.08, 1.05)
+stool("Stool2", 4.08, 1.6)
+stool("Stool3", 4.08, 2.15)
+box("Board", (4.6, 0.93, 0.95), (0.32, 0.015, 0.22), M["walnut"], bevel=0.003, **K)
+cyl("Bowl", (4.6, 0.96, 2.3), 0.13, 0.08, M["black"], r2=0.08, bevel=0.01, **K)
+for i, z in enumerate([1.25, 2.15]):
+    cyl(f"PendantCord_{i}", (4.4, 2.1, z), 0.003, 1.0, M["frame"], verts=6, **K)
+    cyl(f"Pendant_{i}", (4.4, 1.55, z), 0.07, 0.24, M["pendant"], r2=0.09, part="light", room="kitchen")
 
 # ---------- bedroom: low platform bed, wide charcoal headboard, floating nightstands, walnut desk, one big plant
 B = dict(room="bedroom", **F)
@@ -599,8 +603,8 @@ soft("Towel", (1.7, 1.0, 4.55), (0.3, 0.4, 0.03), M["towel"], r=0.01, **Ba)
 Sv = dict(room="service", **F)
 box("Washer", (2.4, 0.425, 5.62), (0.6, 0.85, 0.6), M["white"], bevel=0.015, **Sv)
 cyl("WasherDoor", (2.4, 0.45, 5.31), 0.19, 0.02, M["screen"], rot=(math.radians(90), 0, 0), **Sv)
-box("ShelfA", (2.7, 1.5, 5.75), (0.7, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
-box("ShelfB", (2.7, 1.95, 5.75), (0.7, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
+box("ShelfA", (2.75, 1.5, 5.75), (0.6, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
+box("ShelfB", (2.75, 1.95, 5.75), (0.6, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
 box("Basket", (2.55, 1.62, 5.75), (0.28, 0.22, 0.28), M["black"], bevel=0.01, **Sv)
 box("Boiler", (3.05, 0.45, 5.65), (0.5, 0.9, 0.45), M["white"], bevel=0.015, **Sv)
 

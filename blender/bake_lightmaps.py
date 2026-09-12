@@ -157,7 +157,7 @@ def point(name, pos, energy, color=(1.0, 0.85, 0.65), radius=0.08):
 
 for i, (x, z) in enumerate([(1.2, 1.0), (1.2, 3.4), (2.6, 2.2), (5.6, 1.4), (4.3, 1.4), (5.4, 4.3), (1.0, 5.2), (2.7, 5.2)]):
     point(f"Down_{i}", (x, 2.5, z), 18, (1.0, 0.92, 0.8))
-point("Pendant_a", (3.85, 1.45, 1.1), 10); point("Pendant_b", (3.85, 1.45, 1.9), 10)
+point("Pendant_a", (4.4, 1.45, 1.25), 10); point("Pendant_b", (4.4, 1.45, 2.15), 10)
 point("FloorLamp", (3.65, 1.45, 3.85), 25)
 point("WallLamp_a", (4.15, 1.1, 5.75), 6); point("WallLamp_b", (6.75, 1.1, 5.75), 6)
 point("LED", (6.1, 1.7, 2.4), 14, (1.0, 0.95, 0.85), 1.6)

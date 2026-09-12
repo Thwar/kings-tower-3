@@ -22,7 +22,7 @@ const VIEWS = [
   { key: 'bedroom', name: 'Bedroom',         room: 'Bedroom',           area: '≈ 12 m²',  title: 'Quiet corner.',
     pos: [6.2, 9.5, 11.0], target: [5.5, 0.3, 4.4], walk: [5.3, 3.25, Math.PI] },
   { key: 'bath',    name: 'Bathroom',        room: 'Bathroom',          area: '≈ 3.5 m²', title: 'Walk-in shower.',
-    pos: [-3.5, 4.0, 9.0], target: [1.0, 0.8, 5.0], walk: [1.55, 4.75, Math.PI * 0.75] },
+    pos: [-3.5, 4.0, 9.0], target: [1.0, 0.8, 5.0], walk: [1.5, 5.0, Math.PI * 0.5] },
   { key: 'service', name: 'Service area',    room: 'Service area',      area: '≈ 2 m²',   title: 'Laundry, tucked away.',
     pos: [2.6, 5.0, 12.0], target: [2.55, 0.6, 5.3], walk: [2.7, 4.7, Math.PI] },
   { key: 'terrace', name: 'Terrace',         room: 'Terrace',           area: '29.75 m²', title: 'The outdoor room.',
