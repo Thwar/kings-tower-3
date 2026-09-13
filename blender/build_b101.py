@@ -48,9 +48,7 @@ walls = [
     # south wall with the entrance x 0.5–1.4
     (0, D, 0.5, D, "S", dict(ext=(True, False))), (1.4, D, W, D, "S", dict(ext=(False, True))),
     (0.5, D, 1.4, D, "S", dict(y0=2.1, y1=H, noskirt=True)),
-    # interior: bedroom south wall (door x 2.55–3.4), the east column (closet door z 7.3–8.1, bath door z 10.0–10.8)
-    (0, BZ, 2.55, BZ, "I", dict(ext=(True, False))), (3.4, BZ, 3.6, BZ, "I", dict(ext=(False, True))),
-    (2.55, BZ, 3.4, BZ, "I", dict(y0=2.1, y1=H, noskirt=True)),
+    # interior: the bedroom opens straight onto the living (no wall); the east column (closet door z 7.3–8.1, bath door z 10.0–10.8)
     (3.6, TZ, 3.6, 7.3, "I", dict(ext=(True, False))), (3.6, 8.1, 3.6, 10.0, "I", {}), (3.6, 10.8, 3.6, CZ, "I", dict(ext=(False, True))),
     (3.6, 7.3, 3.6, 8.1, "I", dict(y0=2.1, y1=H, noskirt=True)), (3.6, 10.0, 3.6, 10.8, "I", dict(y0=2.1, y1=H, noskirt=True)),
     (3.6, BS, W, BS, "I", dict(**X)),
@@ -93,7 +91,6 @@ for i, z in enumerate([1.4, 2.8, 4.2, 5.6, 6.7]):
 box("SlideLeaf", (1.25, 1.12, TZ - 0.06), (0.9, 2.2, 0.03), M["glass"], "Glass", bevel=0, part="glass", side="I")
 box("Door_entry", (0.95, 1.05, D - 0.08), (0.9, 2.1, 0.05), M["black"], "Furniture", part="furniture", room="kitchen")
 box("Door_handle", (1.28, 1.02, D - 0.13), (0.02, 0.3, 0.02), M["frame"], "Furniture", bevel=0, part="furniture", room="kitchen")
-box("Door_bedroom", (2.6, 1.05, BZ - 0.45), (0.04, 2.1, 0.85), M["walnut"], "Furniture", part="furniture", room="bedroom")   # open into the bedroom
 box("Door_closet", (3.67, 1.05, 7.7), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="bedroom")           # open, flat against the closet wall
 box("Door_bath", (3.53, 1.05, 10.4), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="bath")             # open flat on the living side
 box("Door_laundry", (4.63, 1.05, 5.9), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="service")
@@ -134,20 +131,20 @@ cyl("DryerDoor", (5.3, 1.32, 6.09), 0.19, 0.02, M["screen"], rot=(math.radians(9
 box("LaundryShelf", (4.7, 1.5, 6.4), (0.5, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
 box("Basket", (4.7, 0.16, 6.4), (0.4, 0.32, 0.4), M["black"], bevel=0.01, **Sv)
 
-# ---------- bedroom: bed with the headboard on the south wall, facing the terrace; nightstands; art
+# ---------- bedroom: bed with the headboard on the long outer wall, facing the closet / bathroom column; open to the living
 B = dict(room="bedroom", **F)
-box("Rug_bedroom", (1.7, 0.008, 7.6), (2.4, 0.012, 1.2), M["rug_dark"], bevel=0.004, **B)
-box("BedPlatform", (1.7, 0.13, 8.4), (2.0, 0.24, 2.2), M["walnut"], bevel=0.01, **B)
-soft("Mattress", (1.7, 0.36, 8.4), (1.6, 0.24, 2.0), M["linen"], r=0.05, **B)
-soft("Duvet", (1.7, 0.5, 8.05), (1.64, 0.07, 1.25), M["charcoal"], r=0.03, **B)
-box("Headboard", (1.7, 0.65, BZ - 0.1), (2.6, 1.1, 0.06), M["charcoal"], bevel=0.01, **B)
-soft("PillowL", (1.3, 0.55, 9.05), (0.68, 0.16, 0.42), M["linen"], r=0.05, **B)
-soft("PillowR", (2.1, 0.55, 9.05), (0.68, 0.16, 0.42), M["linen"], r=0.05, **B)
-for i, x in enumerate([0.4, 3.0]):
-    box(f"Nightstand_{i}", (x, 0.45, 9.15), (0.45, 0.12, 0.38), M["walnut"], bevel=0.006, **B)
-    box(f"WallLampArm_{i}", (x, 1.15, BZ - 0.09), (0.02, 0.02, 0.14), M["frame"], bevel=0, **B)
-    cyl(f"WallLamp_{i}", (x, 1.1, BZ - 0.19), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
-wall_art("Art_bedroom", 1.7, 1.75, BZ - 0.08, 1.5, 0.6, 0, M["art2"], room="bedroom")
+box("Rug_bedroom", (2.7, 0.008, 8.35), (1.2, 0.012, 2.4), M["rug_dark"], bevel=0.004, **B)
+box("BedPlatform", (1.15, 0.13, 8.35), (2.2, 0.24, 2.0), M["walnut"], bevel=0.01, **B)
+soft("Mattress", (1.15, 0.36, 8.35), (2.0, 0.24, 1.6), M["linen"], r=0.05, **B)
+soft("Duvet", (1.5, 0.5, 8.35), (1.25, 0.07, 1.64), M["charcoal"], r=0.03, **B)
+box("Headboard", (0.09, 0.65, 8.35), (0.06, 1.1, 2.4), M["charcoal"], bevel=0.01, **B)
+soft("PillowN", (0.38, 0.55, 7.95), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
+soft("PillowS", (0.38, 0.55, 8.75), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
+for i, z in enumerate([7.1, 9.6]):
+    box(f"Nightstand_{i}", (0.3, 0.45, z), (0.38, 0.12, 0.42), M["walnut"], bevel=0.006, **B)
+    box(f"WallLampArm_{i}", (0.12, 1.15, z), (0.14, 0.02, 0.02), M["frame"], bevel=0, **B)
+    cyl(f"WallLamp_{i}", (0.22, 1.1, z), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
+wall_art("Art_bedroom", 0.09, 1.75, 8.35, 1.4, 0.55, math.pi / 2, M["art2"], room="bedroom")
 plant("Plant_bedroom", 3.2, 7.2, s=1.2, room="bedroom")
 # closet room: wardrobe wall on the east, shelves on the north
 box("Wardrobe", (5.4, 1.15, 8.0), (0.6, 2.3, 2.2), M["black"], bevel=0.006, **B)
@@ -184,7 +181,6 @@ box("CoffeeTable", (2.0, 0.34, 11.3), (0.55, 0.03, 1.1), M["walnut"], bevel=0.00
 box("CoffeeFrame", (2.0, 0.16, 11.3), (0.4, 0.3, 0.9), M["frame"], bevel=0.004, **L)
 box("Book1", (2.0, 0.37, 10.95), (0.2, 0.025, 0.28), M["book"], bevel=0.004, **L)
 box("Tray", (2.0, 0.365, 11.6), (0.2, 0.015, 0.3), M["frame"], bevel=0.004, **L)
-lounge_chair("Lounge", 2.7, 10.25, math.pi + 0.7)                      # by the bedroom wall, angled to the sofa
 floor_lamp("FloorLamp", 0.6, 12.55)
 box("Console", (3.32, 0.42, 11.8), (0.42, 0.28, 1.6), M["walnut"], bevel=0.008, **L)
 box("ConsoleGap", (3.32, 0.42, 10.995), (0.4, 0.01, 0.005), M["frame"], bevel=0, **L)
@@ -192,7 +188,6 @@ box("TV", (3.5, 1.35, 11.8), (0.035, 0.72, 1.25), M["screen"], bevel=0.004, **L)
 box("TVpanel", (3.48, 1.35, 11.8), (0.004, 0.66, 1.19), M["screen"], bevel=0, **L)
 box("Speaker1", (3.32, 0.14, 11.15), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
 box("Speaker2", (3.32, 0.14, 12.45), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
-wall_art("Art_living", 1.9, 1.55, BZ + 0.08, 1.1, 0.8, 0, M["art2"])   # on the bedroom wall, above the lounge side
 plant("Plant_living", 3.2, 12.55, s=1.3)
 
 # ---------- kitchen + dining: matte black run down the east wall with the fridge at the south end, table for four, entry
@@ -238,7 +233,7 @@ plant("Plant_kitchen", 4.4, 17.05, s=1.2, room="kitchen")
 LIGHTS = [(f"Down_{i}", (x, 2.5, z), 18, (1.0, 0.92, 0.8)) for i, (x, z) in enumerate(DOWNLIGHTS)] + [
     ("Pendant_a", (2.6, 1.45, 14.55), 10), ("Pendant_b", (2.6, 1.45, 15.45), 10),
     ("FloorLamp", (1.2, 1.45, 12.55), 25),
-    ("WallLamp_a", (0.4, 1.1, BZ - 0.2), 6), ("WallLamp_b", (3.0, 1.1, BZ - 0.2), 6),
+    ("WallLamp_a", (0.25, 1.1, 7.1), 6), ("WallLamp_b", (0.25, 1.1, 9.6), 6),
     ("LED", (5.45, 1.7, 14.6), 14, (1.0, 0.95, 0.85), 1.6),
     ("Terrace", (3.5, 2.0, TZ - 0.3), 12),
 ]
