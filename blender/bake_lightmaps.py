@@ -1,7 +1,7 @@
 """
 Bakes Cycles lighting into lightmaps and exports the baked model.
 
-    python3 blender/bake_lightmaps.py [--apt=duna] [--fast] [--only=Floor_living,Walls_N]
+    python3 blender/bake_lightmaps.py [--apt=duna] [--style=loft] [--fast] [--only=Floor_living,Walls_N]
 
     --apt selects the apartment: build_<apt>.py and site/<apt>/ (default: build_apartment.py → site/).
 
@@ -31,8 +31,11 @@ from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APT = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--apt=")), "apartment")
+STYLE = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--style=")), "bachelor")   # --style=loft → *-loft outputs
+os.environ["KT_STYLE"] = STYLE
+SFX = "" if STYLE == "bachelor" else f"-{STYLE}"
 SITE = os.path.join(HERE, "..", "site") if APT == "apartment" else os.path.join(HERE, "..", "site", APT)
-LM_DIR = os.path.join(SITE, "lightmaps")
+LM_DIR = os.path.join(SITE, "lightmaps" + SFX)
 FAST = "--fast" in sys.argv
 only = [a for a in sys.argv if a.startswith("--only=")]
 only = only[0].split("=")[1].split(",") if only else None
@@ -71,7 +74,7 @@ for o in list(bpy.data.objects):
     groups.setdefault(group_key(o), []).append(o)
 import json
 os.makedirs(SITE, exist_ok=True)
-with open(os.path.join(SITE, "footprints.json"), "w") as f:
+with open(os.path.join(SITE, f"footprints{SFX}.json"), "w") as f:
     json.dump(footprints, f)
 
 merged = []
@@ -237,7 +240,7 @@ for ob in sorted(merged, key=lambda o: o.name.startswith("Ceiling")):   # ceilin
 
 # ----------------------------------------------------------------------------- export
 bpy.ops.object.select_all(action="SELECT")
-out = os.path.join(SITE, "apartment.glb")
+out = os.path.join(SITE, f"apartment{SFX}.glb")
 bpy.ops.export_scene.gltf(
     filepath=out, export_format="GLB", export_apply=True, export_extras=True, export_yup=True,
     export_lights=False, export_cameras=False, export_animations=False, export_materials="EXPORT",

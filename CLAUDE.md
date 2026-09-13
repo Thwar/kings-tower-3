@@ -14,6 +14,14 @@ Two apartments share everything except their data: → three apartments. A page 
 script (not the bake) still works, lit in real time; the bake is what makes it look like the others. Tall plans set `mapRotate`
 in their config so the minimap is drawn with north to the left.
 
+Each apartment also has two **interior design schemes**, chosen with `KT_STYLE` (env) in Blender and `?style=` on the page:
+`bachelor` (default: oak, walnut, black) and `loft` (grey walls, concrete floor, LED coves, gaming desk, glass cabinet, lit
+vanity, sectional + fur rug). `ktlib.STYLE` swaps the palette; each build script has `if STYLE == "bachelor": … / if STYLE ==
+"loft": …` blocks for the living and bedroom (kitchen, bath, service and terrace are shared). Loft assets carry a `-loft`
+suffix: `apartment-loft.glb`, `lightmaps-loft/`, `footprints-loft.json`, `renders-loft/` — produced by
+`bake_lightmaps.py --style=loft` and `render_views.py --style=loft` (with `--apt=` as usual). The "Minimal / Gamer loft"
+switch in the panel just reloads the page with `?style=loft`, which every in-page link then preserves.
+
 `site/app.js` and `site/style.css` are shared: the page's `config.js` (imported relative to the page URL) supplies viewpoints,
 walk spots, the 2D plan, the cutaway centre and walk bounds. `blender/ktlib.py` holds the materials, primitives, wall builder and
 furniture helpers used by both build scripts. To add a third apartment, copy `site/duna/` and `build_duna.py`.

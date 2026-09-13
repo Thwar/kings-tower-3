@@ -19,11 +19,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ktlib import (H, T, M, X, box, soft, cyl, floor_plane, build_walls, downlights, mirror_x,  # noqa: E402
-                   plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export)
+from ktlib import (H, T, M, X, STYLE, box, soft, cyl, floor_plane, build_walls, downlights, mirror_x,  # noqa: E402
+                   plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export,
+                   led_cove, gaming_desk, display_cabinet, vanity, glass_wardrobe, sectional, tv_wall, loft_coffee_table)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "site", "b101", "apartment.glb")
+OUT = os.path.join(HERE, "..", "site", "b101", "apartment.glb" if STYLE == "bachelor" else f"apartment-{STYLE}.glb")
 APT = dict(name="Bloque B · Dpto. 101", site="site/b101")
 
 # ----------------------------------------------------------------------------- plan (metres; x east, z south, origin NW corner of the terrace)
@@ -131,29 +132,30 @@ cyl("DryerDoor", (5.3, 1.32, 6.09), 0.19, 0.02, M["screen"], rot=(math.radians(9
 box("LaundryShelf", (4.7, 1.5, 6.4), (0.5, 0.025, 0.35), M["oak"], bevel=0.004, **Sv)
 box("Basket", (4.7, 0.16, 6.4), (0.4, 0.32, 0.4), M["black"], bevel=0.01, **Sv)
 
-# ---------- bedroom: bed with the headboard on the long outer wall, facing the closet / bathroom column; open to the living
-B = dict(room="bedroom", **F)
-box("Rug_bedroom", (2.7, 0.008, 8.35), (1.2, 0.012, 2.4), M["rug_dark"], bevel=0.004, **B)
-box("BedPlatform", (1.15, 0.13, 8.35), (2.2, 0.24, 2.0), M["walnut"], bevel=0.01, **B)
-soft("Mattress", (1.15, 0.36, 8.35), (2.0, 0.24, 1.6), M["linen"], r=0.05, **B)
-soft("Duvet", (1.5, 0.5, 8.35), (1.25, 0.07, 1.64), M["charcoal"], r=0.03, **B)
-box("Headboard", (0.09, 0.65, 8.35), (0.06, 1.1, 2.4), M["charcoal"], bevel=0.01, **B)
-soft("PillowN", (0.38, 0.55, 7.95), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
-soft("PillowS", (0.38, 0.55, 8.75), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
-for i, z in enumerate([7.1, 9.6]):
-    box(f"Nightstand_{i}", (0.3, 0.45, z), (0.38, 0.12, 0.42), M["walnut"], bevel=0.006, **B)
-    box(f"WallLampArm_{i}", (0.12, 1.15, z), (0.14, 0.02, 0.02), M["frame"], bevel=0, **B)
-    cyl(f"WallLamp_{i}", (0.22, 1.1, z), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
-wall_art("Art_bedroom", 0.09, 1.75, 8.35, 1.4, 0.55, math.pi / 2, M["art2"], room="bedroom")
-plant("Plant_bedroom", 3.2, 7.2, s=1.2, room="bedroom")
-# closet room: wardrobe wall on the east, shelves on the north
-box("Wardrobe", (5.4, 1.15, 8.0), (0.6, 2.3, 2.2), M["black"], bevel=0.006, **B)
-for i, z in enumerate([7.2, 7.7, 8.2, 8.7]):
-    box(f"WardrobeGap_{i}", (5.097, 1.15, z), (0.01, 2.26, 0.004), M["frame"], bevel=0, **B)
-for i, y in enumerate([0.4, 0.9, 1.4, 1.9]):
-    box(f"ClosetShelf_{i}", (4.35, y, TZ + 0.25), (1.3, 0.025, 0.4), M["oak"], bevel=0.004, **B)
-box("ClosetBox1", (4.1, 1.53, TZ + 0.25), (0.35, 0.24, 0.35), M["black"], bevel=0.01, **B)
-box("ClosetBox2", (4.6, 1.03, TZ + 0.25), (0.35, 0.24, 0.35), M["book"], bevel=0.01, **B)
+if STYLE == "bachelor":
+    # ---------- bedroom: bed with the headboard on the long outer wall, facing the closet / bathroom column; open to the living
+    B = dict(room="bedroom", **F)
+    box("Rug_bedroom", (2.7, 0.008, 8.35), (1.2, 0.012, 2.4), M["rug_dark"], bevel=0.004, **B)
+    box("BedPlatform", (1.15, 0.13, 8.35), (2.2, 0.24, 2.0), M["walnut"], bevel=0.01, **B)
+    soft("Mattress", (1.15, 0.36, 8.35), (2.0, 0.24, 1.6), M["linen"], r=0.05, **B)
+    soft("Duvet", (1.5, 0.5, 8.35), (1.25, 0.07, 1.64), M["charcoal"], r=0.03, **B)
+    box("Headboard", (0.09, 0.65, 8.35), (0.06, 1.1, 2.4), M["charcoal"], bevel=0.01, **B)
+    soft("PillowN", (0.38, 0.55, 7.95), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
+    soft("PillowS", (0.38, 0.55, 8.75), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
+    for i, z in enumerate([7.1, 9.6]):
+        box(f"Nightstand_{i}", (0.3, 0.45, z), (0.38, 0.12, 0.42), M["walnut"], bevel=0.006, **B)
+        box(f"WallLampArm_{i}", (0.12, 1.15, z), (0.14, 0.02, 0.02), M["frame"], bevel=0, **B)
+        cyl(f"WallLamp_{i}", (0.22, 1.1, z), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
+    wall_art("Art_bedroom", 0.09, 1.75, 8.35, 1.4, 0.55, math.pi / 2, M["art2"], room="bedroom")
+    plant("Plant_bedroom", 3.2, 7.2, s=1.2, room="bedroom")
+    # closet room: wardrobe wall on the east, shelves on the north
+    box("Wardrobe", (5.4, 1.15, 8.0), (0.6, 2.3, 2.2), M["black"], bevel=0.006, **B)
+    for i, z in enumerate([7.2, 7.7, 8.2, 8.7]):
+        box(f"WardrobeGap_{i}", (5.097, 1.15, z), (0.01, 2.26, 0.004), M["frame"], bevel=0, **B)
+    for i, y in enumerate([0.4, 0.9, 1.4, 1.9]):
+        box(f"ClosetShelf_{i}", (4.35, y, TZ + 0.25), (1.3, 0.025, 0.4), M["oak"], bevel=0.004, **B)
+    box("ClosetBox1", (4.1, 1.53, TZ + 0.25), (0.35, 0.24, 0.35), M["black"], bevel=0.01, **B)
+    box("ClosetBox2", (4.6, 1.03, TZ + 0.25), (0.35, 0.24, 0.35), M["book"], bevel=0.01, **B)
 
 # ---------- bathroom: shower across the south end, toilet and vanity on the east wall
 Ba = dict(room="bath", **F)
@@ -173,22 +175,23 @@ box("MirrorFrame", (5.615, 1.55, 9.85), (0.01, 0.84, 0.84), M["frame"], bevel=0,
 box("TowelRail", (3.68, 1.2, 11.2), (0.015, 0.015, 0.5), M["frame"], bevel=0, **Ba)
 soft("Towel", (3.7, 1.0, 11.2), (0.03, 0.4, 0.3), M["towel"], r=0.01, **Ba)
 
-# ---------- living: sofa under the window facing the media wall on the bathroom side, lounge chair, lamp
-L = dict(room="living", **F)
-box("Rug_living", (1.9, 0.008, 11.3), (2.6, 0.012, 2.4), M["rug"], bevel=0.004, **L)
-sofa("Sofa", 0.75, 11.3, -math.pi / 2, w=2.2)                          # back to the west wall, facing east
-box("CoffeeTable", (2.0, 0.34, 11.3), (0.55, 0.03, 1.1), M["walnut"], bevel=0.006, **L)
-box("CoffeeFrame", (2.0, 0.16, 11.3), (0.4, 0.3, 0.9), M["frame"], bevel=0.004, **L)
-box("Book1", (2.0, 0.37, 10.95), (0.2, 0.025, 0.28), M["book"], bevel=0.004, **L)
-box("Tray", (2.0, 0.365, 11.6), (0.2, 0.015, 0.3), M["frame"], bevel=0.004, **L)
-floor_lamp("FloorLamp", 0.6, 12.55)
-box("Console", (3.32, 0.42, 11.8), (0.42, 0.28, 1.6), M["walnut"], bevel=0.008, **L)
-box("ConsoleGap", (3.32, 0.42, 10.995), (0.4, 0.01, 0.005), M["frame"], bevel=0, **L)
-box("TV", (3.5, 1.35, 11.8), (0.035, 0.72, 1.25), M["screen"], bevel=0.004, **L)
-box("TVpanel", (3.48, 1.35, 11.8), (0.004, 0.66, 1.19), M["screen"], bevel=0, **L)
-box("Speaker1", (3.32, 0.14, 11.15), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
-box("Speaker2", (3.32, 0.14, 12.45), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
-plant("Plant_living", 3.2, 12.55, s=1.3)
+if STYLE == "bachelor":
+    # ---------- living: sofa under the window facing the media wall on the bathroom side, lounge chair, lamp
+    L = dict(room="living", **F)
+    box("Rug_living", (1.9, 0.008, 11.3), (2.6, 0.012, 2.4), M["rug"], bevel=0.004, **L)
+    sofa("Sofa", 0.75, 11.3, -math.pi / 2, w=2.2)                          # back to the west wall, facing east
+    box("CoffeeTable", (2.0, 0.34, 11.3), (0.55, 0.03, 1.1), M["walnut"], bevel=0.006, **L)
+    box("CoffeeFrame", (2.0, 0.16, 11.3), (0.4, 0.3, 0.9), M["frame"], bevel=0.004, **L)
+    box("Book1", (2.0, 0.37, 10.95), (0.2, 0.025, 0.28), M["book"], bevel=0.004, **L)
+    box("Tray", (2.0, 0.365, 11.6), (0.2, 0.015, 0.3), M["frame"], bevel=0.004, **L)
+    floor_lamp("FloorLamp", 0.6, 12.55)
+    box("Console", (3.32, 0.42, 11.8), (0.42, 0.28, 1.6), M["walnut"], bevel=0.008, **L)
+    box("ConsoleGap", (3.32, 0.42, 10.995), (0.4, 0.01, 0.005), M["frame"], bevel=0, **L)
+    box("TV", (3.5, 1.35, 11.8), (0.035, 0.72, 1.25), M["screen"], bevel=0.004, **L)
+    box("TVpanel", (3.48, 1.35, 11.8), (0.004, 0.66, 1.19), M["screen"], bevel=0, **L)
+    box("Speaker1", (3.32, 0.14, 11.15), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
+    box("Speaker2", (3.32, 0.14, 12.45), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
+    plant("Plant_living", 3.2, 12.55, s=1.3)
 
 # ---------- kitchen + dining: matte black run down the east wall with the fridge at the south end, table for four, entry
 K = dict(room="kitchen", **F)
@@ -226,8 +229,42 @@ for i, z in enumerate([14.95, 15.85]):
 box("CoatRail", (0.09, 1.7, 16.3), (0.03, 0.03, 0.5), M["frame"], bevel=0, **K)
 for i in range(3):
     box(f"Hook{i}", (0.11, 1.65, 16.1 + i * 0.15), (0.05, 0.08, 0.012), M["frame"], bevel=0, **K)
-wall_art("Art_kitchen", 0.09, 1.55, 13.6, 0.9, 1.2, math.pi / 2, M["art2"], room="kitchen")
+if STYLE == "bachelor":
+    wall_art("Art_kitchen", 0.09, 1.55, 13.6, 0.9, 1.2, math.pi / 2, M["art2"], room="kitchen")
 plant("Plant_kitchen", 4.4, 17.05, s=1.2, room="kitchen")
+
+if STYLE == "loft":
+    # ---------- loft bedroom (open to the living): bed in grey, lit vanity and glass wardrobe in the closet room
+    B = dict(room="bedroom", **F)
+    led_cove("Cove_bedliving", (0, TZ, 3.6, CZ), room="bedroom")
+    led_cove("Cove_kitchen", (0, CZ, W, D), room="kitchen")
+    box("Rug_bedroom", (2.7, 0.008, 8.35), (1.2, 0.012, 2.4), M["rug_dark"], bevel=0.004, **B)
+    box("BedPlatform", (1.15, 0.13, 8.35), (2.2, 0.24, 2.0), M["black"], bevel=0.01, **B)
+    soft("Mattress", (1.15, 0.36, 8.35), (2.0, 0.24, 1.6), M["linen"], r=0.05, **B)
+    soft("Duvet", (1.5, 0.5, 8.35), (1.25, 0.07, 1.64), M["charcoal"], r=0.03, **B)
+    box("Headboard", (0.09, 0.65, 8.35), (0.06, 1.1, 2.4), M["charcoal"], bevel=0.01, **B)
+    soft("PillowN", (0.38, 0.55, 7.95), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
+    soft("PillowS", (0.38, 0.55, 8.75), (0.42, 0.16, 0.68), M["linen"], r=0.05, **B)
+    for i, z in enumerate([7.1, 9.6]):
+        box(f"Nightstand_{i}", (0.3, 0.45, z), (0.38, 0.12, 0.42), M["walnut"], bevel=0.006, **B)
+        box(f"WallLampArm_{i}", (0.12, 1.15, z), (0.14, 0.02, 0.02), M["frame"], bevel=0, **B)
+        cyl(f"WallLamp_{i}", (0.22, 1.1, z), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
+    wall_art("Art_bedroom", 0.09, 1.75, 8.35, 1.4, 0.55, math.pi / 2, M["art2"], room="bedroom")
+    plant("Plant_bedroom", 3.2, 7.2, s=1.2, room="bedroom")
+    glass_wardrobe("Wardrobe", 5.33, 8.0, -math.pi / 2, w=2.2)
+    vanity("Vanity", 4.4, 8.85, math.pi)
+    for i, y in enumerate([1.5, 1.95]):
+        box(f"ClosetShelf_{i}", (4.35, y, TZ + 0.25), (1.3, 0.025, 0.4), M["oak"], bevel=0.004, **B)
+    # ---------- loft living: sectional under the window, fur rug, media wall on the column, glass cabinet
+    L = dict(room="living", **F)
+    box("Rug_living", (1.9, 0.008, 11.3), (2.4, 0.012, 2.4), M["rug"], bevel=0.004, **L)
+    sectional("Sofa", 0.75, 11.3, -math.pi / 2, w=2.2)
+    loft_coffee_table("CoffeeTable", 2.0, 11.3)
+    tv_wall("TVwall", 3.31, 11.8, math.pi / 2, w=1.6, shelf_dx=0.85, shoes=False)
+    display_cabinet("Cabinet", 3.32, 9.5, math.pi / 2)
+    floor_lamp("FloorLamp", 0.6, 12.55)
+    # gaming desk against the west wall of the dining zone (the kitchen art comes off that wall)
+    gaming_desk("Desk", 0.45, 13.75, -math.pi / 2, room="kitchen")
 
 # ----------------------------------------------------------------------------- lighting + renders (used by bake_lightmaps.py / render_views.py)
 LIGHTS = [(f"Down_{i}", (x, 2.5, z), 18, (1.0, 0.92, 0.8)) for i, (x, z) in enumerate(DOWNLIGHTS)] + [

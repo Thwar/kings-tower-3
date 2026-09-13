@@ -24,6 +24,10 @@ const WALL_BOXES = PLAN_WALLS.filter(w => w[4] !== 'head').map(([x1, z1, x2, z2]
 }))
 const blocked = (x, z) => WALL_BOXES.some(b => x + WALK_R > b.minX && x - WALK_R < b.maxX && z + WALK_R > b.minZ && z - WALK_R < b.maxZ)
 const WALK_ONLY = q.get('mode') === 'walk'
+// Interior design scheme: 'bachelor' (default assets) or 'loft' (apartment-loft.glb, lightmaps-loft/, renders-loft/ …)
+const STYLE = q.get('style') === 'loft' ? 'loft' : 'bachelor'
+const SFX = STYLE === 'bachelor' ? '' : '-' + STYLE
+const withStyle = href => STYLE === 'bachelor' ? href : href + (href.includes('?') ? '&' : '?') + 'style=' + STYLE
 const BOUNDS = CFG.walkBounds   // walk mode stays inside the apartment
 const $ = s => document.querySelector(s)
 
@@ -128,12 +132,12 @@ const loader = new GLTFLoader()
 const texLoader = new THREE.TextureLoader()
 const LM_INTENSITY = +(q.get('lm') ?? 3.2)   // π (three's lightmap convention) × 2 (bake saved at −1 stop)
 let baked = false
-loader.load('apartment.glb', gltf => {
+loader.load(`apartment${SFX}.glb`, gltf => {
   model = gltf.scene
   model.traverse(o => {
     if (o.isMesh && o.userData.lightmap && o.geometry.attributes.uv1 && !o.material.transparent) {   // glass keeps its plain look
       baked = true
-      const t = texLoader.load('lightmaps/' + o.userData.lightmap, () => { dirty = true })
+      const t = texLoader.load(`lightmaps${SFX}/` + o.userData.lightmap, () => { dirty = true })
       t.colorSpace = THREE.SRGBColorSpace
       t.flipY = false
       t.channel = 1          // sample with the lightmap UVs (TEXCOORD_1), not the texture UVs
@@ -440,11 +444,16 @@ VIEWS.forEach((v, i) => {
   viewsEl.appendChild(li)
 })
 setView(0)
+document.querySelectorAll('.styles button').forEach(b => {
+  b.classList.toggle('on', b.dataset.style === STYLE)
+  b.addEventListener('click', () => { const u = new URL(location.href); if (b.dataset.style === 'bachelor') u.searchParams.delete('style'); else u.searchParams.set('style', b.dataset.style); location.href = u })
+})
+if (STYLE !== 'bachelor') for (const a of document.querySelectorAll('#navWalk, #nav3d, #linkWalk, #footWalk, .apts a')) a.href = withStyle(a.getAttribute('href'))
 if (WALK_ONLY) {
   document.title = `${CFG.name} — walkthrough`
   $('#navWalk').classList.add('on'); $('#nav3d').classList.remove('on')
-  $('#linkWalk').href = './'; $('#linkWalk').textContent = '→ Back to the cutaway model'
-  $('#footWalk').href = './'; $('#footWalk').textContent = 'Back to the model ↗'
+  $('#linkWalk').href = withStyle('./'); $('#linkWalk').textContent = '→ Back to the cutaway model'
+  $('#footWalk').href = withStyle('./'); $('#footWalk').textContent = 'Back to the model ↗'
   document.querySelector('.chip').innerHTML = '<span class="dot"></span>WALKTHROUGH<i>FIRST PERSON</i>'
   $('#tgCut').closest('label').hidden = true; $('#tgCeil').closest('label').hidden = true; $('#tgSpin').closest('label').hidden = true
   // full-bleed: no side panel, room chips float over the view
@@ -493,9 +502,9 @@ document.querySelectorAll('.toolbar button').forEach(b => b.addEventListener('cl
 const gallery = $('#gallery')
 VIEWS.forEach((v, i) => {
   const f = document.createElement('figure')
-  f.innerHTML = `<img loading="lazy" src="renders/${v.key}.jpg" alt="${v.name} render" /><figcaption><small>${String(i + 1).padStart(2, '0')}</small>${v.name}</figcaption>`
+  f.innerHTML = `<img loading="lazy" src="renders${SFX}/${v.key}.jpg" alt="${v.name} render" /><figcaption><small>${String(i + 1).padStart(2, '0')}</small>${v.name}</figcaption>`
   f.querySelector('img').addEventListener('error', () => { f.hidden = true })   // not rendered yet (see render_views.py)
-  f.addEventListener('click', () => { $('#lightboxImg').src = `renders/${v.key}.jpg`; $('#lightboxCap').textContent = `${v.name} · Blender Cycles render`; $('#lightbox').hidden = false })
+  f.addEventListener('click', () => { $('#lightboxImg').src = `renders${SFX}/${v.key}.jpg`; $('#lightboxCap').textContent = `${v.name} · Blender Cycles render`; $('#lightbox').hidden = false })
   gallery.appendChild(f)
 })
 $('#lightboxClose').addEventListener('click', () => { $('#lightbox').hidden = true })
@@ -518,7 +527,7 @@ const mrect = (a, b, c, d) => ROT ? [mx(a, b), mz(c, b), (d - b) * MS, (c - a) *
 const mang = (dx, dz) => ROT ? Math.atan2(-dx, dz) : Math.atan2(dz, dx)   // plan direction → screen angle
 const planLayer = document.createElement('canvas'); planLayer.width = map.width; planLayer.height = map.height
 let planDrawn = false
-fetch('footprints.json').then(r => r.ok ? r.json() : []).then(list => { if (list.length) { footprints.length = 0; footprints.push(...list); planDrawn = false; dirty = true } }).catch(() => {})
+fetch(`footprints${SFX}.json`).then(r => r.ok ? r.json() : []).then(list => { if (list.length) { footprints.length = 0; footprints.push(...list); planDrawn = false; dirty = true } }).catch(() => {})
 function drawPlanLayer() {
   const g = planLayer.getContext('2d')
   g.clearRect(0, 0, map.width, map.height)

@@ -1,7 +1,7 @@
 """
 Renders the apartment with Cycles (CPU) into site[/<apt>]/renders/*.jpg — the "Blender renders" tab.
 
-    python3 blender/render_views.py [--apt=duna] [--fast] [--only=whole,living]      (--fast: 16 samples, 720px, for previews)
+    python3 blender/render_views.py [--apt=duna] [--style=loft] [--fast] [--only=whole,living]      (--fast: 16 samples, 720px, for previews)
 
 Builds the scene by running build_<apt>.py first (its RENDER_VIEWS / FILL_AT globals set the cameras), then hides the ceiling and the two walls
 facing the camera (the same cutaway the web viewer does) and renders each viewpoint.
@@ -16,8 +16,11 @@ from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APT = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--apt=")), "apartment")
+STYLE = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--style=")), "bachelor")   # --style=loft → *-loft outputs
+os.environ["KT_STYLE"] = STYLE
+SFX = "" if STYLE == "bachelor" else f"-{STYLE}"
 SITE = os.path.join(HERE, "..", "site") if APT == "apartment" else os.path.join(HERE, "..", "site", APT)
-OUT = os.path.join(SITE, "renders")
+OUT = os.path.join(SITE, "renders" + SFX)
 FAST = "--fast" in sys.argv
 
 os.environ["KT_SKIP_EXPORT"] = "1"   # the build must not overwrite the baked GLB

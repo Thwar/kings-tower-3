@@ -27,6 +27,9 @@ import textures  # noqa: E402
 
 H = 2.6      # ceiling height (default)
 T = 0.14     # wall thickness
+# Interior design scheme. "bachelor" (default): off-white plaster, oak floor, walnut and black.
+# "loft": grey walls, polished concrete floor, LED coves, gaming desk, glass cabinet, lit vanity, sectional + fur rug.
+STYLE = os.environ.get("KT_STYLE", "bachelor")
 # ----------------------------------------------------------------------------- scene reset
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -167,6 +170,34 @@ M = dict(
     book=mat("book", "#7d7468", 0.85),
     towel=mat("towel", "#dcd7cd", 1.0, sheen=0.6),
 )
+
+if STYLE == "loft":
+    M.update(
+        plaster=tmat("plaster_grey", "plaster", tint="#868b94"),
+        skirting=mat("skirting_dark", "#33363b", 0.5),
+        ceiling=mat("ceiling_loft", "#e3e5e8", 0.9),
+        wood=tmat("concrete_floor", "concrete", tint="#a3a5a9", rough_mul=0.55, clearcoat=0.45),
+        rug=tmat("fur", "wool_rug", tint="#f6f4f0", sheen=0.8),
+        rug_dark=tmat("fur", "wool_rug", tint="#f6f4f0", sheen=0.8),
+        charcoal=tmat("charcoal_loft", "charcoal", tint="#43464c", sheen=0.4),
+        linen=tmat("linen_loft", "linen", tint="#d9dbdf", sheen=0.5),
+        art2=tmat("art_print_loft", "concrete", tint="#8e949c"),
+    )
+    M.update(
+        led=mat("led", "#bff3ff", 0.5, emit="#35d6ff", emit_strength=5.0),
+        led_soft=mat("led_soft", "#bff3ff", 0.5, emit="#35d6ff", emit_strength=1.6),
+        neon=mat("neon", "#ffb0ff", 0.5, emit="#ff4fd8", emit_strength=3.0),
+        white_gloss=mat("white_gloss", "#f4f5f7", 0.15, clearcoat=0.7),
+        chair_red=mat("chair_red", "#b3202a", 0.5),
+        plush_blue=mat("plush_blue", "#3fa7e6", 0.9, sheen=0.9),
+        plush_orange=mat("plush_orange", "#f08a3c", 0.9, sheen=0.9),
+        plush_yellow=mat("plush_yellow", "#f2c43d", 0.9, sheen=0.9),
+        plush_white=mat("plush_white", "#f3f1ee", 0.9, sheen=0.9),
+        bottle=mat("bottle", "#4a2a12", 0.1, clearcoat=0.8),
+        bottle2=mat("bottle2", "#1f4d2b", 0.1, clearcoat=0.8),
+        cloth_a=mat("cloth_a", "#d94f6a", 0.9), cloth_b=mat("cloth_b", "#3b5fa8", 0.9), cloth_c=mat("cloth_c", "#efe9df", 0.9),
+        monitor_glow=mat("monitor_glow", "#26496b", 0.3, emit="#4c8fd8", emit_strength=1.2),
+    )
 
 # ----------------------------------------------------------------------------- primitives
 
@@ -457,6 +488,210 @@ def wall_art(name, x, y, z, w, h, rot, mat_in, frame=True, room="living", depth=
 
 
 F = dict(part="furniture")
+
+
+# ----------------------------------------------------------------------------- loft pieces
+def led_strip(name, x1, z1, x2, z2, y, room="living", m=None):
+    """thin emissive strip between two points at height y"""
+    dx, dz = x2 - x1, z2 - z1
+    length, rot = math.hypot(dx, dz), math.atan2(dz, dx)
+    box(name, ((x1 + x2) / 2, y, (z1 + z2) / 2), (length, 0.018, 0.03), m or M["led"], "Furniture", bevel=0, rot_z=rot, part="light", room=room)
+
+
+def led_cove(name, rect, room="living", y=None, inset=0.09):
+    """LED strip around a room's ceiling perimeter, like the coves in the reference photo"""
+    x1, z1, x2, z2 = rect
+    y = y or H - 0.06
+    a, b, c, d = x1 + inset, z1 + inset, x2 - inset, z2 - inset
+    led_strip(f"{name}_n", a, b, c, b, y, room); led_strip(f"{name}_s", a, d, c, d, y, room)
+    led_strip(f"{name}_w", a, b, a, d, y, room); led_strip(f"{name}_e", c, b, c, d, y, room)
+
+
+def gaming_chair(name, x, z, rot, room="living"):
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0)
+    soft(f"{name}_seat", (px, 0.48, pz), (0.52, 0.1, 0.52), M["black"], r=0.04, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, -0.26)
+    soft(f"{name}_back", (px, 0.95, pz), (0.5, 0.86, 0.12), M["black"], r=0.05, rot_z=rot, rot_x=-0.15, part="furniture", room=room)
+    px, pz = P(0, -0.3)
+    soft(f"{name}_head", (px, 1.3, pz), (0.3, 0.16, 0.09), M["chair_red"], r=0.03, rot_z=rot, rot_x=-0.15, part="furniture", room=room)
+    for i, dx in enumerate([-0.24, 0.24]):
+        px, pz = P(dx, -0.2)
+        soft(f"{name}_wing{i}", (px, 0.72, pz), (0.06, 0.35, 0.16), M["chair_red"], r=0.02, rot_z=rot, part="furniture", room=room)
+        px, pz = P(dx * 1.2, -0.05)
+        box(f"{name}_arm{i}", (px, 0.68, pz), (0.05, 0.03, 0.3), M["black"], bevel=0.005, rot_z=rot, part="furniture", room=room)
+    cx0, cz0 = P(0, 0)
+    cyl(f"{name}_post", (cx0, 0.28, cz0), 0.025, 0.36, M["steel"], verts=10, part="furniture", room=room)
+    for i in range(5):
+        a = i * math.pi * 2 / 5 + rot
+        box(f"{name}_spoke{i}", (x + math.cos(a) * 0.16, 0.04, z + math.sin(a) * 0.16), (0.32, 0.03, 0.035), M["black"], bevel=0.005,
+            rot_z=-a, part="furniture", room=room)
+        sphere(f"{name}_caster{i}", (x + math.cos(a) * 0.3, 0.03, z + math.sin(a) * 0.3), 0.03, M["frame"], sub=1, part="furniture", room=room)
+
+
+def gaming_desk(name, x, z, rot, room="living", w=1.6):
+    """black desk facing -dz: curved monitor on a stand, keyboard, mouse, PC tower with a lit side panel, gaming chair"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0)
+    box(f"{name}_top", (px, 0.74, pz), (w, 0.03, 0.7), M["black"], bevel=0.006, rot_z=rot, part="furniture", room=room)
+    for i, dx in enumerate([-w / 2 + 0.06, w / 2 - 0.06]):
+        px, pz = P(dx, 0)
+        box(f"{name}_leg{i}", (px, 0.36, pz), (0.04, 0.72, 0.6), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, -0.24)
+    box(f"{name}_led", (px, 0.73, pz), (w - 0.1, 0.012, 0.02), M["led"], bevel=0, rot_z=rot, part="light", room=room)   # edge glow at the back
+    px, pz = P(-0.05, -0.22)
+    box(f"{name}_monitor", (px, 1.1, pz), (0.85, 0.38, 0.03), M["screen"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_panel", (px - s * 0.018, 1.1, pz + c * 0.018), (0.8, 0.34, 0.004), M["monitor_glow"], bevel=0, rot_z=rot, part="light", room=room)
+    box(f"{name}_stand", (px, 0.84, pz), (0.04, 0.18, 0.04), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_foot", (px, 0.76, pz), (0.3, 0.012, 0.16), M["frame"], bevel=0.003, rot_z=rot, part="furniture", room=room)
+    px, pz = P(-0.05, 0.08)
+    box(f"{name}_keyboard", (px, 0.765, pz), (0.42, 0.012, 0.14), M["black"], bevel=0.003, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_keys", (px, 0.772, pz), (0.38, 0.004, 0.1), M["neon"], bevel=0, rot_z=rot, part="light", room=room)
+    px, pz = P(0.28, 0.08)
+    soft(f"{name}_mouse", (px, 0.775, pz), (0.06, 0.03, 0.1), M["black"], r=0.012, rot_z=rot, part="furniture", room=room)
+    px, pz = P(w / 2 + 0.16, 0.05)
+    box(f"{name}_pc", (px, 0.24, pz), (0.22, 0.46, 0.45), M["black"], bevel=0.006, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_pcglow", (px - c * 0.115, 0.24, pz - s * 0.115), (0.004, 0.36, 0.36), M["led_soft"], bevel=0, rot_z=rot, part="light", room=room)
+    px, pz = P(0, 0.62)
+    gaming_chair(f"{name}_chair", px, pz, rot + math.pi, room=room)
+
+
+def display_cabinet(name, x, z, rot, room="living", w=0.8, h=1.9):
+    """black-framed glass cabinet with lit shelves of bottles"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0)
+    box(f"{name}_base", (px, 0.04, pz), (w, 0.08, 0.4), M["black"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_top", (px, h - 0.02, pz), (w, 0.04, 0.4), M["black"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_topled", (px, h - 0.045, pz), (w - 0.06, 0.01, 0.34), M["led_soft"], bevel=0, rot_z=rot, part="light", room=room)
+    for i, (dx, dz) in enumerate([(-w / 2 + 0.015, -0.185), (w / 2 - 0.015, -0.185), (-w / 2 + 0.015, 0.185), (w / 2 - 0.015, 0.185)]):
+        px, pz = P(dx, dz)
+        box(f"{name}_post{i}", (px, h / 2, pz), (0.03, h, 0.03), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, 0)
+    box(f"{name}_glass", (px, h / 2, pz), (w - 0.03, h - 0.12, 0.37), M["glass"], "Glass", bevel=0, rot_z=rot, part="glass", side="I", room=room)
+    n = 4
+    for k in range(n):
+        y = 0.08 + (h - 0.14) * (k + 1) / (n + 1)
+        px, pz = P(0, 0)
+        box(f"{name}_shelf{k}", (px, y, pz), (w - 0.05, 0.015, 0.36), M["glass"], "Glass", bevel=0, rot_z=rot, part="glass", side="I", room=room)
+        for j in range(5):
+            dx = -w / 2 + 0.1 + j * (w - 0.2) / 4
+            bx, bz = P(dx, (rnd() - 0.5) * 0.16)
+            cyl(f"{name}_b{k}{j}", (bx, y + 0.13, bz), 0.03, 0.24, M["bottle"] if (j + k) % 2 else M["bottle2"], verts=10, part="furniture", room=room)
+
+
+def vanity(name, x, z, rot, room="bedroom"):
+    """white dressing table with drawers, a round mirror ringed with bulbs, a stool and a row of bottles"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0)
+    box(f"{name}_top", (px, 0.75, pz), (1.1, 0.03, 0.45), M["white_gloss"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0.35, 0)
+    box(f"{name}_drawers", (px, 0.37, pz), (0.38, 0.72, 0.42), M["white_gloss"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    for i, y in enumerate([0.2, 0.44, 0.66]):
+        px, pz = P(0.35, 0.212)
+        box(f"{name}_pull{i}", (px, y, pz), (0.12, 0.01, 0.01), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+    for dx in (-0.53,):
+        px, pz = P(dx, 0)
+        box(f"{name}_leg", (px, 0.37, pz), (0.03, 0.72, 0.4), M["white_gloss"], bevel=0, rot_z=rot, part="furniture", room=room)
+    px, pz = P(-0.1, -0.21)
+    cyl(f"{name}_mirror", (px, 1.35, pz), 0.3, 0.012, M["steel"], rot=(math.radians(90), 0, -rot), part="furniture", room=room)
+    for i in range(12):
+        a = i * math.pi * 2 / 12
+        bx, bz = P(-0.1 + math.cos(a) * 0.31, -0.2)
+        sphere(f"{name}_bulb{i}", (bx, 1.35 + math.sin(a) * 0.31, bz), 0.018, M["downlight"], sub=1, part="light", room=room)
+    for j in range(8):
+        bx, bz = P(-0.45 + j * 0.09, -0.12 + (rnd() - 0.5) * 0.1)
+        cyl(f"{name}_pot{j}", (bx, 0.815, bz), 0.015, 0.1, M["neon"] if j % 3 == 0 else M["white_gloss"], verts=8, part="furniture", room=room)
+    px, pz = P(-0.1, 0.45)
+    cyl(f"{name}_stool", (px, 0.42, pz), 0.17, 0.06, M["charcoal"], bevel=0.015, part="furniture", room=room)
+    cyl(f"{name}_stoolpost", (px, 0.2, pz), 0.02, 0.38, M["frame"], verts=10, part="furniture", room=room)
+    cyl(f"{name}_stoolbase", (px, 0.012, pz), 0.14, 0.024, M["frame"], part="furniture", room=room)
+
+
+def glass_wardrobe(name, x, z, rot, w=1.9, room="bedroom"):
+    """wardrobe with a black frame, glass doors, an LED strip and a rail of hanging clothes"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0.3)
+    box(f"{name}_body", (px, 1.15, pz), (w, 2.3, 0.02), M["black"], bevel=0.004, rot_z=rot, part="furniture", room=room)   # back panel
+    for i, dz in enumerate([-0.29, 0.29]):
+        pass
+    for i, dx in enumerate([-w / 2 + 0.01, w / 2 - 0.01]):
+        px, pz = P(dx, 0)
+        box(f"{name}_side{i}", (px, 1.15, pz), (0.02, 2.3, 0.6), M["black"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, 0)
+    box(f"{name}_top", (px, 2.29, pz), (w, 0.02, 0.6), M["black"], bevel=0, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_bottom", (px, 0.01, pz), (w, 0.02, 0.6), M["black"], bevel=0, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_led", (px, 2.26, pz), (w - 0.06, 0.012, 0.03), M["led_soft"], bevel=0, rot_z=rot, part="light", room=room)
+    px, pz = P(0, -0.29)
+    box(f"{name}_doors", (px, 1.15, pz), (w - 0.04, 2.24, 0.012), M["glass"], "Glass", bevel=0, rot_z=rot, part="glass", side="I", room=room)
+    px, pz = P(0, 0)
+    cyl(f"{name}_rail", (px, 1.85, pz), 0.012, w - 0.08, M["steel"], verts=8, rot=(0, math.radians(90), -rot), part="furniture", room=room)
+    n = int((w - 0.2) / 0.13)
+    for j in range(n):
+        dx = -w / 2 + 0.14 + j * 0.13
+        px, pz = P(dx, (rnd() - 0.5) * 0.05)
+        mtr = (M["cloth_a"], M["cloth_b"], M["cloth_c"], M["charcoal"])[j % 4]
+        box(f"{name}_cloth{j}", (px, 1.35, pz), (0.09, 0.9 + rnd() * 0.3, 0.3), mtr, bevel=0.01, rot_z=rot, part="furniture", room=room)
+
+
+def sectional(name, x, z, rot, w=2.6, room="living"):
+    """dark grey sectional with a chaise on the right, plush cushions like the reference"""
+    fabric = M["charcoal"]
+    sofa(name, x, z, rot, w=w, fabric=fabric, room=room)
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(w / 2 - 0.45, 0.85)
+    soft(f"{name}_chaise", (px, 0.2, pz), (0.9, 0.22, 0.75), fabric, r=0.03, rot_z=rot, part="furniture", room=room)
+    soft(f"{name}_chaiseseat", (px, 0.38, pz), (0.85, 0.14, 0.7), fabric, r=0.06, rot_z=rot, part="furniture", room=room)
+    for i, (dx, m) in enumerate([(-w / 2 + 0.35, M["plush_blue"]), (-w / 2 + 0.75, M["plush_orange"]), (w / 2 - 0.4, M["plush_white"]), (0.05, M["plush_yellow"])]):
+        px, pz = P(dx, -0.15)
+        soft(f"{name}_plush{i}", (px, 0.62, pz), (0.36, 0.34, 0.14), m, r=0.06, rot_z=rot, rot_x=-0.3, part="furniture", room=room)
+    px, pz = P(-w / 2 + 0.55, 0.15)
+    soft(f"{name}_throw", (px, 0.47, pz), (0.8, 0.05, 0.7), M["leather_tan"], r=0.02, rot_z=rot, part="furniture", room=room)
+
+
+def tv_wall(name, x, z, rot, room="living", w=1.8, shelf_dx=-1.2, shoes=True):
+    """walnut media console, big TV, shelves of bottles and a row of framed photos above"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0.22)
+    box(f"{name}_console", (px, 0.25, pz), (w, 0.5, 0.42), M["walnut"], bevel=0.008, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_gap", (px - s * 0.211, 0.25, pz + c * 0.211), (w - 0.06, 0.006, 0.004), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, 0.03)
+    box(f"{name}_tv", (px, 1.25, pz), (1.5, 0.85, 0.035), M["screen"], bevel=0.004, rot_z=rot, part="furniture", room=room)
+    box(f"{name}_panel", (px - s * 0.02, 1.25, pz + c * 0.02), (1.44, 0.79, 0.004), M["tv"], bevel=0, rot_z=rot, part="light", room=room)
+    for i, dx in enumerate([shelf_dx] * 3):
+        px, pz = P(dx, 0.1)
+        box(f"{name}_shelf{i}", (px, 1.15 + i * 0.35, pz), (0.5, 0.02, 0.18), M["walnut"], bevel=0.003, rot_z=rot, part="furniture", room=room)
+        for j in range(4):
+            bx, bz = P(dx - 0.18 + j * 0.12, 0.1)
+            cyl(f"{name}_bt{i}{j}", (bx, 1.24 + i * 0.35, bz), 0.02, 0.16, M["bottle"] if j % 2 else M["white_gloss"], verts=8, part="furniture", room=room)
+    for i in range(4):
+        px, pz = P(-0.55 + i * 0.4, 0.02)
+        wall_art(f"{name}_photo{i}", px, 2.05, pz, 0.28, 0.24, rot, M["art2"], room=room, depth=0.02)
+    if not shoes:
+        return
+    px, pz = P(w / 2 + 0.35, 0.22)
+    box(f"{name}_shoerack", (px, 0.4, pz), (0.45, 0.8, 0.32), M["white_gloss"], bevel=0.005, rot_z=rot, part="furniture", room=room)
+    for i in range(3):
+        box(f"{name}_shoe{i}", (px - s * 0.14, 0.15 + i * 0.25, pz + c * 0.14), (0.38, 0.015, 0.05), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+
+
+def loft_coffee_table(name, x, z, room="living"):
+    box(f"{name}_top", (x, 0.42, z), (1.0, 0.03, 0.6), M["white_gloss"], bevel=0.005, part="furniture", room=room)
+    soft(f"{name}_cloth", (x, 0.44, z), (0.96, 0.012, 0.56), M["plush_white"], r=0.005, part="furniture", room=room)
+    for i, (dx, dz) in enumerate([(-0.45, -0.25), (0.45, -0.25), (-0.45, 0.25), (0.45, 0.25)]):
+        box(f"{name}_leg{i}", (x + dx, 0.2, z + dz), (0.03, 0.4, 0.03), M["walnut"], bevel=0, part="furniture", room=room)
+    cyl(f"{name}_vase", (x, 0.52, z - 0.1), 0.04, 0.16, M["glass"], "Glass", bevel=0, part="glass", side="I", room=room)
+    for i in range(5):
+        sphere(f"{name}_flower{i}", (x + (rnd() - 0.5) * 0.14, 0.66 + rnd() * 0.05, z - 0.1 + (rnd() - 0.5) * 0.14), 0.03,
+               (M["plush_orange"], M["chair_red"], M["plush_yellow"])[i % 3], sub=1, part="furniture", room=room)
+    for i, (dx, dz) in enumerate([(-0.25, 0.1), (0.05, 0.15), (0.3, 0.05)]):
+        cyl(f"{name}_plate{i}", (x + dx, 0.455, z + dz), 0.09, 0.012, M["white_gloss"], part="furniture", room=room)
 
 
 # ----------------------------------------------------------------------------- mirror
