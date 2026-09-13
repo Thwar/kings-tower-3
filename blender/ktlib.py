@@ -459,6 +459,27 @@ def wall_art(name, x, y, z, w, h, rot, mat_in, frame=True, room="living", depth=
 F = dict(part="furniture")
 
 
+# ----------------------------------------------------------------------------- mirror
+def mirror_x(width):
+    """flip the whole model east-west about x = width/2 (plan built mirrored to the brochure): bakes the flip into
+    every mesh, restores outward normals, and swaps the E/W cutaway tags"""
+    import bmesh
+    flip = Matrix.Translation((width, 0, 0)) @ Matrix.Diagonal((-1, 1, 1, 1))
+    for o in bpy.data.objects:
+        if o.type != "MESH":
+            continue
+        o.matrix_world = flip @ o.matrix_world
+        bpy.ops.object.select_all(action="DESELECT")
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+        bm.to_mesh(o.data); bm.free()
+        if o.get("side") in ("E", "W"):
+            o["side"] = "W" if o["side"] == "E" else "E"
+
+
 # ----------------------------------------------------------------------------- export
 def export(out, blend=None):
     """render_views.py and bake_lightmaps.py build the scene but must not overwrite the baked GLB (KT_SKIP_EXPORT)"""

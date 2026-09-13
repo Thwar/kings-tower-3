@@ -4,10 +4,11 @@ Bloque B · Departamento 101 — builds the apartment in Blender and exports sit
 Run headless:   python3 blender/build_b101.py [--blend]      (needs `pip install bpy`)
 
 One-bedroom, 100.20 m² in total, on a long north-south strip (brochure page 9, "imagen referencial"). North up:
-a large terrace at the top with an outdoor dining table and a barbecue, a laundry cubicle in its SE corner,
-then the bedroom (sliding door onto the terrace) with the wardrobe room and the bathroom stacked in a column
-along the east side, the living in the middle, and the kitchen run + dining table at the south end with the
-entrance. The brochure gives only the total, so the strip is scaled from the drawing: 5.7 m wide,
+a large terrace at the top with an outdoor dining table and a barbecue on the east side, a laundry cubicle in
+its SW corner, then the bedroom (sliding door onto the terrace, headboard on the east wall) with the wardrobe
+room and the bathroom stacked in a column along the WEST side, the living in the middle (sofa on the east wall),
+and the kitchen run down the west wall + dining table at the south end, entrance in the SE corner.
+The plan below is written with the column on the east and mirrored at the end (mirror_x), so read every x as W − x. The brochure gives only the total, so the strip is scaled from the drawing: 5.7 m wide,
 6.8 m of terrace + 10.7 m enclosed.
 
 Same interior concept as the other two: minimal bachelor pad — off-white plaster, oak floor, matte black
@@ -18,7 +19,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ktlib import (H, T, M, X, box, soft, cyl, floor_plane, build_walls, downlights,  # noqa: E402
+from ktlib import (H, T, M, X, box, soft, cyl, floor_plane, build_walls, downlights, mirror_x,  # noqa: E402
                    plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -241,9 +242,13 @@ LIGHTS = [(f"Down_{i}", (x, 2.5, z), 18, (1.0, 0.92, 0.8)) for i, (x, z) in enum
     ("LED", (5.45, 1.7, 14.6), 14, (1.0, 0.95, 0.85), 1.6),
     ("Terrace", (3.5, 2.0, TZ - 0.3), 12),
 ]
-SUN_ROT = (50, -10, -35)          # afternoon sun from the west: through the living window and across the terrace
+mirror_x(W)   # the brochure has the column on the west: flip everything built above
+_mx = lambda p: (W - p[0], p[1], p[2])
+LIGHTS = [(n, _mx(p), *rest) for n, p, *rest in LIGHTS]
+SUN_ROT = (50, 10, 35)            # afternoon sun from the east: through the living window and across the terrace
 FILL_AT = (2.85, 9.0, 9.0)
-RENDER_VIEWS = [
+_sw = {"E": "W", "W": "E"}
+RENDER_VIEWS = [(k, _mx(p), _mx(t), f, "".join(_sw.get(c, c) for c in h)) for k, p, t, f, h in [
     ("whole",   (-16.0, 20.0, 30.0), (2.85, 0.4, 9.0), 30, "SW"),
     ("living",  (-8.0, 6.0, 11.3),   (2.0, 0.6, 11.3), 42, "W"),
     ("kitchen", (2.85, 7.0, 25.0),   (3.0, 0.7, 15.3), 40, "S"),
@@ -251,6 +256,6 @@ RENDER_VIEWS = [
     ("bath",    (-2.5, 8.5, 11.0),   (4.65, 0.6, 11.0), 40, "W"),
     ("terrace", (-7.0, 6.5, -6.0),   (2.85, 0.6, 3.2), 42, "NW"),
     ("service", (5.05, 4.5, -2.0),   (5.05, 0.7, 6.2), 40, "N"),
-]
+]]
 
 export(OUT, blend=os.path.join(HERE, "b101.blend"))
