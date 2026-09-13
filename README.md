@@ -1,4 +1,4 @@
-# Apartment 3D — King's Tower Dept. D · Torre Duna Tipo E
+# Apartment 3D — King's Tower Dept. D · Torre Duna Tipo E · Bloque B 101
 
 Blender-modelled apartments published as interactive cutaway viewers and first-person walkthroughs on GitHub Pages.
 The header switches between the two apartments; each has its own model, lighting bake, renders and 2D plan.
@@ -9,6 +9,8 @@ The header switches between the two apartments; each has its own model, lighting
 | `/?mode=walk` | its **Walkthrough** — the same baked model in first person: WASD or touch joystick, wall collision, 75° lens |
 | `/duna/` | **Torre Duna · Tipo E** (49.61 m²) — the same viewer on the second apartment |
 | `/duna/?mode=walk` | its walkthrough |
+| `/b101/` | **Bloque B · Departamento 101** (100.20 m², one bedroom, long terrace) |
+| `/b101/?mode=walk` | its walkthrough |
 
 Cutaway and walkthrough are one page per apartment, one model and one lighting bake, so they always look the same.
 
@@ -21,6 +23,7 @@ python3 blender/bake_lightmaps.py [--fast]        # bakes Cycles lighting → si
 python3 blender/render_views.py [--fast]          # Cycles renders → site/renders/*.jpg (the "Blender renders" tab)
 python3 blender/build_apartment.py --blend        # also writes blender/apartment.blend to open in Blender
 python3 blender/build_duna.py                     # the second apartment; add --apt=duna to the bake / render scripts → site/duna/
+python3 blender/build_b101.py                     # the third; --apt=b101 → site/b101/
 ```
 
 - `build_apartment.py` / `build_duna.py` build everything procedurally from each floor plan: walls with openings, floors,
@@ -31,6 +34,7 @@ python3 blender/build_duna.py                     # the second apartment; add --
 - `bake_lightmaps.py` is what gives the viewer its photographic look: it merges the model into one mesh per material
   (walls per side, so the cutaway still works), unwraps a second UV set, bakes diffuse global illumination with Cycles
   (neutral sky + sun + the apartment's own lamps, ceiling removed so the cutaway reads evenly lit) and stores it as lightmaps.
+  It uses the GPU when Blender can see one (Metal / CUDA / OptiX / HIP) and prints which; on CPU it takes about 12 minutes.
   The viewer multiplies albedo by lightmap and adds a faint environment for reflections — no real-time lights or shadow maps,
   which is why it looks like a render and runs at 60 fps. **Run it after any model change** and commit its outputs together.
 

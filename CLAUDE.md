@@ -2,15 +2,17 @@
 
 One static site (`site/`) + one Blender pipeline (`blender/`). No npm, no bundler. Push to `main` → Pages deploys `site/`.
 
-Two apartments share everything except their data:
+| | King's Tower · Dept. D | Torre Duna · Tipo E | Bloque B · Dpto. 101 |
+|---|---|---|---|
+| page | `site/index.html` (`/`) | `site/duna/index.html` (`/duna/`) | `site/b101/index.html` (`/b101/`) |
+| per-page data | `site/config.js`, `site/plan.js` | `site/duna/config.js`, `site/duna/plan.js` | `site/b101/config.js`, `site/b101/plan.js` |
+| model + bake outputs | `site/apartment.glb`, `site/lightmaps/`, `site/footprints.json`, `site/renders/` | the same names under `site/duna/` | the same names under `site/b101/` |
+| Blender build | `blender/build_apartment.py` | `blender/build_duna.py` | `blender/build_b101.py` |
+| bake / renders | `bake_lightmaps.py`, `render_views.py` | the same scripts with `--apt=duna` | `--apt=b101` |
 
-| | King's Tower · Dept. D | Torre Duna · Tipo E |
-|---|---|---|
-| page | `site/index.html` (`/`) | `site/duna/index.html` (`/duna/`) |
-| per-page data | `site/config.js`, `site/plan.js` | `site/duna/config.js`, `site/duna/plan.js` |
-| model + bake outputs | `site/apartment.glb`, `site/lightmaps/`, `site/footprints.json`, `site/renders/` | the same names under `site/duna/` |
-| Blender build | `blender/build_apartment.py` | `blender/build_duna.py` |
-| bake / renders | `bake_lightmaps.py`, `render_views.py` | the same scripts with `--apt=duna` |
+Two apartments share everything except their data: → three apartments. A page whose `apartment.glb` was exported by the build
+script (not the bake) still works, lit in real time; the bake is what makes it look like the others. Tall plans set `mapRotate`
+in their config so the minimap is drawn with north to the left.
 
 `site/app.js` and `site/style.css` are shared: the page's `config.js` (imported relative to the page URL) supplies viewpoints,
 walk spots, the 2D plan, the cutaway centre and walk bounds. `blender/ktlib.py` holds the materials, primitives, wall builder and
@@ -28,6 +30,6 @@ furniture helpers used by both build scripts. To add a third apartment, copy `si
   wall top by a fraction of a millimetre so junction overlaps don't z-fight.
   Set `KT_SKIP_EXPORT=1` (the helper scripts do) so a rebuild never overwrites the baked `apartment.glb`.
 - `blender/textures.py` — procedural seamless PBR sets, cached in `blender/tex/` (gitignored).
-- `blender/bake_lightmaps.py [--apt=duna]` — the lighting bake (full ≈ 50 min CPU, `--fast` ≈ 5 min). After ANY model change
+- `blender/bake_lightmaps.py [--apt=duna]` — the lighting bake (≈ 12 min on 4 CPU cores, a few minutes on a GPU, which it uses automatically; `--fast` ≈ 4 min). After ANY model change
   run it and commit that apartment's `apartment.glb`, `lightmaps/` and `footprints.json` together.
 - `blender/render_views.py [--apt=duna]` — Cycles renders for the "Blender renders" tab (`--fast` for previews). Commit the JPGs.

@@ -115,9 +115,10 @@ def surface_area(ob):
 
 def lightmap_size(ob):
     a = surface_area(ob)
-    # ~ texel density target: 64 texels per metre → size from area, clamped, power of two
-    px = math.sqrt(a) * (96 if FAST else 200)
-    size = 2 ** round(math.log2(max(128, min(2048, px))))
+    # texel density from surface area, power of two. Capped at 1024: the viewer never shows a lightmap larger than
+    # that on screen, and bake time scales with pixel count (a 2048 map costs 4× a 1024 one).
+    px = math.sqrt(a) * (96 if FAST else 160)
+    size = 2 ** round(math.log2(max(128, min(1024, px))))
     return int(size)
 
 
@@ -165,8 +166,24 @@ for name, pos, energy, *rest in G["LIGHTS"]:   # the apartment's own lamps, list
 
 # ----------------------------------------------------------------------------- bake
 scene.render.engine = "CYCLES"
+# GPU when Blender can see one (CUDA / OptiX / HIP / Metal), otherwise every CPU core. The denoiser cleans up the
+# rest, so 48 samples is enough for lighting-only maps.
 scene.cycles.device = "CPU"
-scene.cycles.samples = 24 if FAST else 96
+try:
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    for backend in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
+        prefs.compute_device_type = backend
+        prefs.get_devices()
+        gpus = [d for d in prefs.devices if d.type != "CPU"]
+        if gpus:
+            for d in prefs.devices:
+                d.use = True
+            scene.cycles.device = "GPU"
+            print("baking on GPU:", backend, [d.name for d in gpus])
+            break
+except Exception as e:   # no cycles prefs in some bpy builds
+    print("GPU probe skipped:", e)
+scene.cycles.samples = 24 if FAST else 48
 scene.cycles.use_denoising = True
 scene.cycles.denoiser = "OPENIMAGEDENOISE"
 scene.render.bake.use_pass_direct = True

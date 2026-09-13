@@ -494,6 +494,7 @@ const gallery = $('#gallery')
 VIEWS.forEach((v, i) => {
   const f = document.createElement('figure')
   f.innerHTML = `<img loading="lazy" src="renders/${v.key}.jpg" alt="${v.name} render" /><figcaption><small>${String(i + 1).padStart(2, '0')}</small>${v.name}</figcaption>`
+  f.querySelector('img').addEventListener('error', () => { f.hidden = true })   // not rendered yet (see render_views.py)
   f.addEventListener('click', () => { $('#lightboxImg').src = `renders/${v.key}.jpg`; $('#lightboxCap').textContent = `${v.name} · Blender Cycles render`; $('#lightbox').hidden = false })
   gallery.appendChild(f)
 })
@@ -506,28 +507,34 @@ $('#grip').addEventListener('click', () => panel.classList.toggle('tall'))
 
 // ------------------------------------------------------------------ minimap (2D plan)
 const map = $('#map'), mg = map.getContext('2d')
-map.height = Math.round(map.width * (PLAN.z1 - PLAN.z0) / (PLAN.x1 - PLAN.x0))
-const MS = map.width / (PLAN.x1 - PLAN.x0)
-const mx = x => (x - PLAN.x0) * MS, mz = z => (z - PLAN.z0) * MS
+// Long, narrow plans (Bloque B) are drawn rotated: north to the left, so the map stays a landscape card.
+const ROT = !!CFG.mapRotate
+const SPAN_X = ROT ? PLAN.z1 - PLAN.z0 : PLAN.x1 - PLAN.x0, SPAN_Y = ROT ? PLAN.x1 - PLAN.x0 : PLAN.z1 - PLAN.z0
+map.height = Math.round(map.width * SPAN_Y / SPAN_X)
+const MS = map.width / SPAN_X
+const mx = (x, z) => ROT ? (z - PLAN.z0) * MS : (x - PLAN.x0) * MS
+const mz = (x, z) => ROT ? (PLAN.x1 - x) * MS : (z - PLAN.z0) * MS
+const mrect = (a, b, c, d) => ROT ? [mx(a, b), mz(c, b), (d - b) * MS, (c - a) * MS] : [mx(a, b), mz(a, b), (c - a) * MS, (d - b) * MS]
+const mang = (dx, dz) => ROT ? Math.atan2(-dx, dz) : Math.atan2(dz, dx)   // plan direction → screen angle
 const planLayer = document.createElement('canvas'); planLayer.width = map.width; planLayer.height = map.height
 let planDrawn = false
 fetch('footprints.json').then(r => r.ok ? r.json() : []).then(list => { if (list.length) { footprints.length = 0; footprints.push(...list); planDrawn = false; dirty = true } }).catch(() => {})
 function drawPlanLayer() {
   const g = planLayer.getContext('2d')
   g.clearRect(0, 0, map.width, map.height)
-  for (const r of PLAN_ROOMS) { const [a, b, c, d] = r.rect; g.fillStyle = r.fill; g.fillRect(mx(a), mz(b), (c - a) * MS, (d - b) * MS) }
+  for (const r of PLAN_ROOMS) { g.fillStyle = r.fill; g.fillRect(...mrect(...r.rect)) }
   g.fillStyle = 'rgba(255,255,255,.45)'
-  for (const [x, z, w, d] of footprints) g.fillRect(mx(x), mz(z), w * MS, d * MS)
+  for (const [x, z, w, d] of footprints) g.fillRect(...mrect(x, z, x + w, z + d))
   g.lineCap = 'butt'
   for (const [x1, z1, x2, z2, kind] of PLAN_WALLS) {
     g.setLineDash(kind === 'head' ? [3, 3] : [])
     g.strokeStyle = kind === 'glass' ? '#6fb6dc' : kind === 'head' ? '#9aa0a8' : '#262a2f'
     g.lineWidth = kind === 'wall' ? WALL_T * MS : 2
-    g.beginPath(); g.moveTo(mx(x1), mz(z1)); g.lineTo(mx(x2), mz(z2)); g.stroke()
+    g.beginPath(); g.moveTo(mx(x1, z1), mz(x1, z1)); g.lineTo(mx(x2, z2), mz(x2, z2)); g.stroke()
   }
   g.setLineDash([])
   g.font = '600 9px ' + getComputedStyle(document.body).fontFamily; g.fillStyle = 'rgba(30,32,36,.55)'; g.textAlign = 'center'
-  for (const r of PLAN_ROOMS) { const [a, b, c, d] = r.rect; if ((c - a) > 1.3) g.fillText(r.label.toUpperCase(), mx((a + c) / 2), mz((b + d) / 2) + 3) }
+  for (const r of PLAN_ROOMS) { const [a, b, c, d] = r.rect; if (r.label && Math.min(c - a, d - b) > 1.3) g.fillText(r.label.toUpperCase(), mx((a + c) / 2, (b + d) / 2), mz((a + c) / 2, (b + d) / 2) + 3) }
   planDrawn = true
 }
 const mapRoomEl = $('#mapRoom')
@@ -541,16 +548,17 @@ function drawMinimap() {
   const tx = walkMode ? px - Math.sin(walk.yaw) * 3 : controls.target.x
   const tz = walkMode ? pz - Math.cos(walk.yaw) * 3 : controls.target.z
   const cx = Math.min(Math.max(px, PLAN.x0 + 0.2), PLAN.x1 - 0.2), cz = Math.min(Math.max(pz, PLAN.z0 + 0.2), PLAN.z1 - 0.2)
-  const a = Math.atan2(tz - pz, tx - px), spread = walkMode ? 0.5 : 0.35
+  const a = mang(tx - px, tz - pz), spread = walkMode ? 0.5 : 0.35
+  const sx = mx(cx, cz), sy = mz(cx, cz), sTx = mx(tx, tz), sTy = mz(tx, tz)
   // view cone from the (clamped) camera toward what it looks at
   mg.fillStyle = 'rgba(37,99,235,.18)'
-  mg.beginPath(); mg.moveTo(mx(cx), mz(cz)); mg.arc(mx(cx), mz(cz), walkMode ? 26 : 40, a - spread, a + spread); mg.closePath(); mg.fill()
+  mg.beginPath(); mg.moveTo(sx, sy); mg.arc(sx, sy, walkMode ? 26 : 40, a - spread, a + spread); mg.closePath(); mg.fill()
   if (!walkMode) {   // orbit target
     mg.strokeStyle = '#2563eb'; mg.lineWidth = 1.5
-    mg.beginPath(); mg.arc(mx(tx), mz(tz), 5, 0, Math.PI * 2); mg.stroke()
-    mg.beginPath(); mg.moveTo(mx(tx) - 8, mz(tz)); mg.lineTo(mx(tx) + 8, mz(tz)); mg.moveTo(mx(tx), mz(tz) - 8); mg.lineTo(mx(tx), mz(tz) + 8); mg.stroke()
+    mg.beginPath(); mg.arc(sTx, sTy, 5, 0, Math.PI * 2); mg.stroke()
+    mg.beginPath(); mg.moveTo(sTx - 8, sTy); mg.lineTo(sTx + 8, sTy); mg.moveTo(sTx, sTy - 8); mg.lineTo(sTx, sTy + 8); mg.stroke()
   }
-  mg.fillStyle = '#2563eb'; mg.beginPath(); mg.arc(mx(cx), mz(cz), 4.5, 0, Math.PI * 2); mg.fill()
+  mg.fillStyle = '#2563eb'; mg.beginPath(); mg.arc(sx, sy, 4.5, 0, Math.PI * 2); mg.fill()
   mg.strokeStyle = '#fff'; mg.lineWidth = 1.5; mg.stroke()
   const r = roomAt(walkMode ? px : tx, walkMode ? pz : tz)
   const label = state.mode !== 'walk' && state.view === 0 && !tween ? 'Whole apartment' : (r ? r.label : 'Outside')
@@ -558,8 +566,9 @@ function drawMinimap() {
 }
 map.addEventListener('click', e => {
   const rect = map.getBoundingClientRect()
-  const x = PLAN.x0 + (e.clientX - rect.left) / rect.width * (PLAN.x1 - PLAN.x0)
-  const z = PLAN.z0 + (e.clientY - rect.top) / rect.height * (PLAN.z1 - PLAN.z0)
+  const u = (e.clientX - rect.left) / rect.width, v = (e.clientY - rect.top) / rect.height
+  const x = ROT ? PLAN.x1 - v * (PLAN.x1 - PLAN.x0) : PLAN.x0 + u * (PLAN.x1 - PLAN.x0)
+  const z = ROT ? PLAN.z0 + u * (PLAN.z1 - PLAN.z0) : PLAN.z0 + v * (PLAN.z1 - PLAN.z0)
   if (state.mode === 'walk') { camera.position.x = x; camera.position.z = z; return }
   // keep the current orbit offset, move the target to the clicked point
   const off = camera.position.clone().sub(controls.target)

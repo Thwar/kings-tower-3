@@ -427,6 +427,20 @@ def office_chair(name, x, z, rot, room="bedroom"):
         sphere(f"{name}_caster{i}", (x + math.cos(a) * 0.29, 0.03, z + math.sin(a) * 0.29), 0.028, M["frame"], sub=1, part="furniture", room=room)
 
 
+def chair(name, x, z, rot, room="kitchen", fabric=None):
+    """dining chair: thin black frame, leather seat and back. rot 0 faces south (back on the north side)"""
+    fabric = fabric or M["leather"]
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0)
+    soft(f"{name}_seat", (px, 0.46, pz), (0.44, 0.05, 0.44), fabric, r=0.02, rot_z=rot, part="furniture", room=room)
+    px, pz = P(0, -0.2)
+    soft(f"{name}_back", (px, 0.72, pz), (0.42, 0.42, 0.035), fabric, r=0.015, rot_z=rot, rot_x=-0.1, part="furniture", room=room)
+    for i, (dx, dz) in enumerate([(-0.19, -0.19), (0.19, -0.19), (-0.19, 0.19), (0.19, 0.19)]):
+        px, pz = P(dx, dz)
+        box(f"{name}_leg{i}", (px, 0.22, pz), (0.02, 0.44, 0.02), M["frame"], bevel=0, rot_z=rot, part="furniture", room=room)
+
+
 def floor_lamp(name, x, z, room="living"):
     cyl(f"{name}_base", (x, 0.012, z), 0.16, 0.024, M["frame"], bevel=0.004, part="furniture", room=room)
     cyl(f"{name}_pole", (x, 0.85, z), 0.012, 1.7, M["frame"], verts=10, part="furniture", room=room)
