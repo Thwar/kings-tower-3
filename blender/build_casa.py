@@ -74,8 +74,7 @@ walls0 = [
     (XK, ZC, 6.6, ZC, "N", dict(ext=(True, False))), (7.4, ZC, W, ZC, "N", dict(ext=(False, True))),      # estudio north wall, door to the patio x 6.6–7.4
     (6.6, ZC, 7.4, ZC, "N", dict(y0=2.1, y1=H0, noskirt=True)),
     # interior
-    (XL, 0, XL, 5.7, "I", dict(ext=(True, False))), (XL, 6.9, XL, 7.85, "I", dict(ext=(False, True))),   # comedor/living | cocina/hall (opening z 5.7–6.9)
-    (XL, 5.7, XL, 6.9, "I", dict(y0=2.1, y1=H0, noskirt=True)),
+    (XL, 0, XL, ZC, "I", dict(ext=(True, True))), (XL, 6.9, XL, 7.85, "I", dict(ext=(False, True))),   # comedor | cocina; the living is open to the hall, short return by the front door
     (XL, ZC, 3.6, ZC, "I", dict(ext=(True, False))), (4.4, ZC, XK, ZC, "I", dict(ext=(False, True))),    # cocina south wall, door x 3.6–4.4
     (3.6, ZC, 4.4, ZC, "I", dict(y0=2.1, y1=H0, noskirt=True)),
     (XK, ZC, XK, 3.0, "I", dict(ext=(True, False))), (XK, 3.8, XK, 7.14, "I", dict(ext=(False, True))),  # hall | estudio, door z 3.0–3.8
@@ -116,13 +115,18 @@ box("Step2", (3.7, -0.02, ZS + 0.75), (1.6, 0.16, 0.5), M["stone"], "Structure",
 box("Door_entry", (3.7, 1.05, 7.08), (0.9, 2.1, 0.05), M["walnut"], "Furniture", part="furniture", room="hall", level=0)
 box("Door_handle", (4.02, 1.02, 7.13), (0.02, 0.3, 0.02), M["brass"], "Furniture", bevel=0.005, part="furniture", room="hall", level=0)
 
-# U-stair in the hall: flight 1 (east half) up to a landing at the north, flight 2 (west half) back south to the upper hall
-stair_flight("Stair1", 5.67, 6.44, 5.64, 4.1, 0.0, 1.47, 7, M["stair"])
-box("Landing", (5.67, 1.45, 3.55), (1.54, 0.06, 1.1), M["stair"], "Furniture", bevel=0.004, part="furniture", room="hall", level=0)
-box("LandingBase", (5.67, 0.72, 3.55), (1.54, 1.42, 1.1), M["plaster"], "Furniture", bevel=0.004, part="furniture", room="hall", level=0)
-stair_flight("Stair2", 4.9, 5.67, 4.1, 5.64, 1.47, Y1, 7, M["stair"])
-railing("Rail_s1", 5.67, 5.64, 5.67, 4.1, 0.75, h=0.95, posts=4)   # between the flights (centre wall)
-railing("Rail_s2", 4.9, 4.1, 4.9, 5.64, 2.2, h=0.95, posts=4)
+# straight stair along the east side of the hall: starts on the floor in front of the estudio door (z 3.3) and rises
+# southward to the upper hall (z 6.6); the w.c. sits under its high end. Handrail on the open (west) side.
+ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 3.3, 6.6, 14
+stair_flight("Stair", ST_X0, ST_X1, ST_Z0, ST_Z1, 0.0, Y1, ST_N, M["stair"])
+_run, _rise = (ST_Z1 - ST_Z0) / ST_N, Y1 / ST_N
+for i in range(0, ST_N, 2):
+    z = ST_Z0 + _run * (i + 0.5); y = _rise * (i + 1)
+    box(f"StairPost{i}", (ST_X0 + 0.04, y + 0.45, z), (0.03, 0.9, 0.03), M["railing"], bevel=0, part="furniture", room="hall")
+_ang = math.atan2(Y1, ST_Z1 - ST_Z0)
+box("StairRail", (ST_X0 + 0.04, Y1 / 2 + 0.92, (ST_Z0 + ST_Z1) / 2), (0.05, 0.04, math.hypot(Y1, ST_Z1 - ST_Z0) + 0.3), M["railing"], bevel=0.004,
+    rot_x=-_ang, part="furniture", room="hall")
+box("StairWall", (ST_X1 + 0.02, Y1 / 4, (ST_Z0 + ST_Z1) / 2), (0.04, Y1 / 2, ST_Z1 - ST_Z0), M["plaster"], bevel=0, part="furniture", room="hall")   # closes the triangle under the flight against the estudio wall
 
 F = dict(part="furniture")
 # ---------- comedor: table for eight, sideboard
@@ -235,7 +239,7 @@ frames1 = [
 ]
 
 # upper floor slab (in pieces around the stair well x 4.9–6.44, z 3.74–5.64), then everything else relative to Y1
-SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 3.74, 5.64
+SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 4.4, 6.7
 for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, SW_X0, ZS + 0.07), (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07),
                                        (SW_X0, ZN1 - 0.07, SW_X1, SW_Z0), (SW_X0, SW_Z1, SW_X1, ZS + 0.07)]):
     box(f"Slab1_{i}", ((x1 + x2) / 2, (H0 + Y1) / 2, (z1 + z2) / 2), (x2 - x1, Y1 - H0, z2 - z1), M["concrete"], "Structure", bevel=0, part="slab", level=1)
@@ -253,9 +257,8 @@ floorp("Floor1_balcon", (XL, 7.14, XK, ZS), M["stone"], 0, 1, "balcon")
 box("Ceiling1", (W / 2, H1 + 0.05, (ZN1 + ZS) / 2), (W + T, 0.1, ZS - ZN1 + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=1)
 downlights([(2.0, 3.7), (1.5, 7.3), (5.3, 2.8), (5.3, 6.0), (8.2, 4.5), (8.2, 7.5)], height=H1)
 # stair well railing on the upper floor
-railing("Rail_well_w", SW_X0, SW_Z1, SW_X0, SW_Z0 + 0.6, 0, h=1.0, posts=4)
-railing("Rail_well_s", SW_X0, SW_Z1, SW_X1, SW_Z1, 0, h=1.0, posts=3)
-railing("Rail_well_e", SW_X1, SW_Z0, SW_X1, SW_Z1, 0, h=1.0, posts=4)
+railing("Rail_well_w", SW_X0, SW_Z0, SW_X0, SW_Z1, 0, h=1.0, posts=4)
+railing("Rail_well_n", SW_X0, SW_Z0, SW_X1, SW_Z0, 0, h=1.0, posts=3)
 railing("Rail_balcon", XL + 0.1, ZS - 0.03, XK - 0.1, ZS - 0.03, 0, h=1.05, posts=5)
 box("Curb_balcon", ((XL + XK) / 2, 0.06, ZS), (XK - XL, 0.12, T), M["concrete"], "Structure", part="slab")
 
@@ -359,7 +362,7 @@ for i in range(8):
 for i in range(3):
     box(f"CrateTop{i}", (0.8 + i * 0.9, 0.72, ZN1 + 1.4), (0.5, 0.42, 0.5), M["book"], bevel=0.01, **A)
 box("Ladder", (7.2, 1.0, RIDGE_Z + 0.3), (0.45, 2.0, 0.05), M["oak"], bevel=0.004, rot_x=0.25, **A)
-box("Hatch", (5.67, 0.005, SW_Z1 + 0.7), (0.8, 0.01, 0.8), M["oak"], bevel=0.004, **A)
+box("Hatch", (5.67, 0.005, SW_Z0 - 0.7), (0.8, 0.01, 0.8), M["oak"], bevel=0.004, **A)
 chair("OldChair", 8.5, 5.0, 0.7, room="attic")
 box("Trunk", (8.4, 0.3, 7.5), (1.0, 0.6, 0.6), M["leather_tan"], bevel=0.02, **A)
 set_level(0, 0.0)
@@ -382,13 +385,13 @@ RENDER_VIEWS = [   # key, camera, target, fov, hidden sides, highest floor shown
 # the minimap / walk-collision plans come straight from the wall lists above
 write_plan(os.path.join(HERE, "..", "site", "casa", "plan.js"), [
     dict(walls=walls0, bounds=(-0.3, -0.3, W + 0.3, ZS + 1.2),
-         extra=[(1.0, 7.85, 1.4, 7.85, "wall")],
+         extra=[(1.0, 7.85, 1.4, 7.85, "wall"), (ST_X0, ST_Z0 + 0.9, ST_X0, ST_Z1, "wall"), (ST_X0, ST_Z1, ST_X1, ST_Z1, "wall")],
          rooms=[("living", (0, 0, XL, 3.3), "#d9b98c", "Comedor"), ("living2", (0, 3.3, XL, 7.85), "#d9b98c", "Living"),
                 ("kitchen", (XL, 0, XK, ZC), "#d2b58c", "Cocina"), ("hall", (XL, ZC, XK, 7.0), "#cfc6b8", "Hall"),
                 ("estudio", (XK, ZC, W, 7.14), "#dfc39b", "Estudio"), ("patio", (XK, 0, W, ZC), "#b9b4ab", "Patio"),
                 ("wc", (4.16, 5.71, XK, 7.0), "#c9cdd1", ""), ("porch", (XL, 7.14, W, ZS), "#bdb8b0", "Porch")]),
     dict(walls=walls1, bounds=(-0.3, ZN1 - 0.3, W + 0.3, ZS + 0.3),
-         extra=[(SW_X0, SW_Z0, SW_X0, SW_Z1, "wall"), (SW_X0, SW_Z1, SW_X1, SW_Z1, "wall"), (SW_X1, SW_Z0, SW_X1, SW_Z1, "wall")],
+         extra=[(SW_X0, SW_Z0, SW_X0, SW_Z1, "wall"), (SW_X0, SW_Z0, SW_X1, SW_Z0, "wall")],
          rooms=[("dorm1", (0, ZN1, 4.16, 5.51), "#dfc39b", "Dormitorio"), ("dorm2", (0, 5.51, XL, ZS), "#dfc39b", "Dormitorio"),
                 ("bano", (4.16, ZN1, XK, 3.67), "#c9cdd1", "Baño"), ("hall1", (XL, 3.67, XK, 7.14), "#cfc6b8", "Hall"),
                 ("padres", (XK, 3.14, W, ZS), "#d9b98c", "Padres"), ("balcon", (XL, 7.14, XK, ZS), "#bdb8b0", "Balcón")]),
