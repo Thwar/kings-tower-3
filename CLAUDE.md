@@ -10,9 +10,19 @@ One static site (`site/`) + one Blender pipeline (`blender/`). No npm, no bundle
 | Blender build | `blender/build_apartment.py` | `blender/build_duna.py` | `blender/build_b101.py` |
 | bake / renders | `bake_lightmaps.py`, `render_views.py` | the same scripts with `--apt=duna` | `--apt=b101` |
 
+Plus **Casa · 2 plantas** (`site/casa/`, `blender/build_casa.py`, `--apt=casa`): a two-storey house with an attic, real-time lit (no bake).
+
 Two apartments share everything except their data: → three apartments. A page whose `apartment.glb` was exported by the build
 script (not the bake) still works, lit in real time; the bake is what makes it look like the others. Tall plans set `mapRotate`
 in their config so the minimap is drawn with north to the left.
+
+**Multi-storey models** (the house): every object carries `level` (0 ground, 1 upper, 2 attic). In Blender, `set_level(n, y)`
+makes every primitive built afterwards carry that level and sit `y` metres up, so upper-floor furniture is written in
+floor-relative heights. The config lists `levels: [{key, name, y, plan, walkBounds}]`, each view has a `level`, and the page
+shows a Planta baja / Planta alta / Desván / All control: floors above the chosen one are hidden, the chosen floor's ceiling
+(or the roof) is what "Show ceiling" toggles, the minimap draws that floor's plan and the walkthrough uses its height and
+collision. `plan.js` is **generated** by the build script (`write_plan`) from the same wall lists, so never hand-edit it.
+`render_views.py` accepts a 6th item per view: the highest floor to show.
 
 Each apartment also has two **interior design schemes**, chosen with `KT_STYLE` (env) in Blender and `?style=` on the page:
 `bachelor` (default: oak, walnut, black) and `loft` (grey walls, concrete floor, LED coves, gaming desk, glass cabinet, lit

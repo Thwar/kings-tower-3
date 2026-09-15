@@ -82,7 +82,8 @@ objs = [o for o in bpy.data.objects if o.type == "MESH"]
 only = [a for a in sys.argv if a.startswith("--only=")]
 only = only[0].split("=")[1].split(",") if only else None
 
-for key, pos, target, fov, hide in VIEWS:
+for key, pos, target, fov, hide, *rest in VIEWS:
+    max_level = rest[0] if rest else 99      # houses: hide the floors above this one
     if only and key not in only:
         continue
     cam.location = P(*pos)
@@ -92,7 +93,8 @@ for key, pos, target, fov, hide in VIEWS:
     for o in objs:
         side = o.get("side")
         part = o.get("part")
-        o.hide_render = part == "ceiling" or (side in hide if side else False)
+        lvl = o.get("level", 0)
+        o.hide_render = lvl > max_level or (part == "ceiling" and lvl >= max_level) or (side in hide if side else False)
     scene.render.filepath = os.path.join(OUT, f"{key}.jpg")
     bpy.ops.render.render(write_still=True)
     print("rendered", key)

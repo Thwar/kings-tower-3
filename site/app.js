@@ -10,7 +10,13 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 // Everything apartment-specific (viewpoints, plan, bounds) comes from the page's own config.js:
 // site/config.js for King's Tower Dept. D, site/duna/config.js for Torre Duna Tipo E. Same app.js for both.
 const CFG = (await import(new URL('./config.js', location.href).href)).default
-const { walls: PLAN_WALLS, rooms: PLAN_ROOMS, BOUNDS: PLAN, roomAt, T: WALL_T } = CFG.plan
+// Floors: a house has several levels, each with its own 2D plan and floor height; apartments have one.
+const LEVELS = CFG.levels || [{ key: 'main', name: 'Plan', y: 0, plan: CFG.plan, walkBounds: CFG.walkBounds }]
+const MAX_LEVEL = LEVELS.length - 1
+let curPlan = LEVELS[0].plan
+const PLAN = LEVELS.reduce((b, l) => ({ x0: Math.min(b.x0, l.plan.BOUNDS.x0), x1: Math.max(b.x1, l.plan.BOUNDS.x1), z0: Math.min(b.z0, l.plan.BOUNDS.z0), z1: Math.max(b.z1, l.plan.BOUNDS.z1) }),
+  { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity })
+const WALL_T = LEVELS[0].plan.T
 const q = new URLSearchParams(location.search)   // ?mode=walk · ?env= ?exp= ?lm= tune lighting · ?ao=1
 
 // ------------------------------------------------------------------ viewpoints
@@ -19,16 +25,18 @@ const VIEWS = CFG.views
 const CENTER = new THREE.Vector3(...CFG.center)
 // walk-mode collision: every plan wall (except the heads above doorways) as an XZ box, thickness T
 const WALK_R = 0.22
-const WALL_BOXES = PLAN_WALLS.filter(w => w[4] !== 'head').map(([x1, z1, x2, z2]) => ({
+const wallBoxes = plan => plan.walls.filter(w => w[4] !== 'head').map(([x1, z1, x2, z2]) => ({
   minX: Math.min(x1, x2) - WALL_T / 2, maxX: Math.max(x1, x2) + WALL_T / 2, minZ: Math.min(z1, z2) - WALL_T / 2, maxZ: Math.max(z1, z2) + WALL_T / 2,
 }))
-const blocked = (x, z) => WALL_BOXES.some(b => x + WALK_R > b.minX && x - WALK_R < b.maxX && z + WALK_R > b.minZ && z - WALK_R < b.maxZ)
+for (const l of LEVELS) l.boxes = wallBoxes(l.plan)
+let walkLevel = 0
+const blocked = (x, z) => LEVELS[walkLevel].boxes.some(b => x + WALK_R > b.minX && x - WALK_R < b.maxX && z + WALK_R > b.minZ && z - WALK_R < b.maxZ)
 const WALK_ONLY = q.get('mode') === 'walk'
 // Interior design scheme: 'bachelor' (default assets) or 'loft' (apartment-loft.glb, lightmaps-loft/, renders-loft/ …)
 const STYLE = q.get('style') === 'loft' ? 'loft' : 'bachelor'
 const SFX = STYLE === 'bachelor' ? '' : '-' + STYLE
 const withStyle = href => STYLE === 'bachelor' ? href : href + (href.includes('?') ? '&' : '?') + 'style=' + STYLE
-const BOUNDS = CFG.walkBounds   // walk mode stays inside the apartment
+const boundsOf = () => LEVELS[walkLevel].walkBounds || CFG.walkBounds   // walk mode stays inside the plan of the current floor
 const $ = s => document.querySelector(s)
 
 // ------------------------------------------------------------------ renderer / scene
@@ -125,7 +133,7 @@ const ORBIT_BTNS = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT:
 const PAN_BTNS = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
 
 // ------------------------------------------------------------------ model
-const parts = { walls: [], ceiling: [], glass: [] }   // walls: { mesh, side }
+const parts = { walls: [], ceiling: [], glass: [], all: [] }   // walls: { mesh, side }; all: every mesh with its level
 const footprints = []   // [x, z, w, d] of furniture, for the minimap
 let model = null
 const loader = new GLTFLoader()
@@ -148,6 +156,8 @@ loader.load(`apartment${SFX}.glb`, gltf => {
     if (o.isMesh && o.material.transparent) { o.material.depthWrite = false; o.renderOrder = 10 }
     if (!o.isMesh) return
     const x = o.userData || {}
+    x.level = x.level ?? 0
+    parts.all.push(o)
     o.castShadow = x.part !== 'floor' && x.part !== 'glass' && x.part !== 'ceiling'
     o.receiveShadow = true
     if (x.part === 'glass') {
@@ -166,7 +176,8 @@ loader.load(`apartment${SFX}.glb`, gltf => {
       // footprint for the minimap: XZ bounding box, skipping small bits (legs, handles, plant leaves)
       const b = new THREE.Box3().setFromObject(o)
       const w = b.max.x - b.min.x, d = b.max.z - b.min.z
-      if (w * d > 0.05 && b.min.y < 1.2) footprints.push([b.min.x, b.min.z, w, d])
+      const ly = LEVELS[x.level]?.y ?? 0
+      if (w * d > 0.05 && b.min.y - ly < 1.2) footprints.push([b.min.x, b.min.z, w, d, x.level])
     }
     if (o.material.emissive && o.material.emissiveIntensity > 0) o.material.toneMapped = false
   })
@@ -199,19 +210,20 @@ function mergeStatic(root) {
     const g = o.geometry.clone().applyMatrix4(o.matrixWorld)
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k)
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2))
-    const key = o.material.uuid
-    if (!groups.has(key)) groups.set(key, { material: o.material, geos: [], cast: false })
+    const key = o.material.uuid + ':' + (o.userData.level ?? 0)
+    if (!groups.has(key)) groups.set(key, { material: o.material, geos: [], cast: false, level: o.userData.level ?? 0 })
     const grp = groups.get(key)
     grp.geos.push(g); grp.cast = grp.cast || o.castShadow
     drop.push(o)
   })
-  for (const o of drop) o.parent.remove(o)
-  for (const { material, geos, cast } of groups.values()) {
+  for (const o of drop) { o.parent.remove(o); const i = parts.all.indexOf(o); if (i >= 0) parts.all.splice(i, 1) }
+  for (const { material, geos, cast, level } of groups.values()) {
     const merged = mergeGeometries(geos, false)
     if (!merged) continue
     const m = new THREE.Mesh(merged, material)
     m.castShadow = cast; m.receiveShadow = true
-    m.userData.part = 'merged'
+    m.userData.part = 'merged'; m.userData.level = level
+    parts.all.push(m)
     root.add(m)
     for (const g of geos) g.dispose()
   }
@@ -258,7 +270,8 @@ function applyScannedTextures(root) {
 }
 
 // ------------------------------------------------------------------ cutaway
-const state = { cutaway: true, ceiling: false, mode: 'orbit', view: 0 }
+const state = { cutaway: true, ceiling: false, mode: 'orbit', view: 0, level: 'all' }
+let planDrawn = false   // minimap plan layer needs redrawing (level change, footprints arrived)   // level: index or 'all' (floors above are hidden)
 const lastHidden = new Set()
 const OUTWARD = { N: new THREE.Vector3(0, 0, -1), S: new THREE.Vector3(0, 0, 1), E: new THREE.Vector3(1, 0, 0), W: new THREE.Vector3(-1, 0, 0) }
 const toCam = new THREE.Vector3()
@@ -275,14 +288,29 @@ function applyCutaway(force = false) {
   }
   let changed = force || hidden.size !== lastHidden.size
   for (const s of hidden) if (!lastHidden.has(s)) changed = true
-  if (changed) {
-    for (const w of parts.walls) w.mesh.visible = !hidden.has(w.side)
+  const top = state.mode === 'walk' ? MAX_LEVEL : state.level === 'all' ? MAX_LEVEL : state.level
+  const showCeil = state.mode === 'walk' || state.ceiling || !state.cutaway
+  if (changed || top !== lastTop || showCeil !== lastCeil) {
+    for (const o of parts.all) {
+      const x = o.userData, l = x.level ?? 0
+      let vis = l <= top
+      if (x.part === 'ceiling') vis = vis && (l < top || showCeil)          // the top floor's ceiling / roof is the one you toggle
+      if ((x.part === 'wall' || x.part === 'frame' || x.part === 'glass') && x.side && x.side !== 'I') vis = vis && !hidden.has(x.side)
+      o.visible = vis
+    }
     lastHidden.clear(); for (const s of hidden) lastHidden.add(s)
+    lastTop = top; lastCeil = showCeil
     requestShadows()
   }
-  const showCeil = state.mode === 'walk' || state.ceiling || !state.cutaway
-  if (parts.ceiling.length && parts.ceiling[0].visible !== showCeil) requestShadows()
-  for (const c of parts.ceiling) c.visible = showCeil
+}
+let lastTop = -1, lastCeil = null
+function setLevel(l) {
+  state.level = l
+  document.querySelectorAll('.floors button').forEach(b => b.classList.toggle('on', b.dataset.level === String(l)))
+  const idx = l === 'all' ? 0 : l
+  curPlan = LEVELS[idx].plan; planDrawn = false
+  dirty = true
+  applyCutaway(true)
 }
 
 // ------------------------------------------------------------------ camera tweens
@@ -307,6 +335,7 @@ function setView(i) {
   $('#introTitle').textContent = v.title
   $('#introRoom').textContent = v.room
   $('#introArea').textContent = v.area
+  if (LEVELS.length > 1 && state.mode !== 'walk') setLevel(v.level === undefined ? 'all' : v.level)
   if (state.mode === 'walk') { setMode('walk'); return }   // in the walkthrough, the room list teleports to each room's standing spot
   flyTo(v.pos, v.target)
 }
@@ -325,7 +354,9 @@ function setMode(m) {
     const v = VIEWS[state.view]
     // each viewpoint has a standing spot on open floor and a heading into the room
     const [wx, wz, yaw] = v.walk
-    camera.position.set(wx, 1.6, wz)
+    walkLevel = v.level ?? 0
+    curPlan = LEVELS[walkLevel].plan; planDrawn = false
+    camera.position.set(wx, LEVELS[walkLevel].y + 1.6, wz)
     walk.yaw = yaw
     fovTarget = FOV_WALK
     walk.pitch = -0.08
@@ -336,6 +367,7 @@ function setMode(m) {
     fovTarget = FOV_ORBIT
     controls.mouseButtons = m === 'pan' ? PAN_BTNS : ORBIT_BTNS
     controls.touches = m === 'pan' ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE } : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }
+    if (wasWalk && LEVELS.length > 1) setLevel(VIEWS[state.view].level === undefined ? 'all' : VIEWS[state.view].level)
     if (wasWalk) {
       // re-seat orbit target ahead of the walker so the camera doesn't jump
       const f = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(walk.pitch, walk.yaw, 0, 'YXZ'))
@@ -409,9 +441,10 @@ function stepWalk(dt) {
   const p = camera.position
   if (!blocked(p.x + dx, p.z)) p.x += dx      // slide along walls: test each axis separately
   if (!blocked(p.x, p.z + dz)) p.z += dz
-  p.y = THREE.MathUtils.clamp(p.y + u * sp, 0.6, 2.35)
-  p.x = THREE.MathUtils.clamp(p.x, BOUNDS.minX, BOUNDS.maxX)
-  p.z = THREE.MathUtils.clamp(p.z, BOUNDS.minZ, BOUNDS.maxZ)
+  const ly = LEVELS[walkLevel].y, B = boundsOf()
+  p.y = THREE.MathUtils.clamp(p.y + u * sp, ly + 0.6, ly + 2.35)
+  p.x = THREE.MathUtils.clamp(p.x, B.minX, B.maxX)
+  p.z = THREE.MathUtils.clamp(p.z, B.minZ, B.maxZ)
   camera.rotation.order = 'YXZ'
   camera.rotation.set(walk.pitch, walk.yaw, 0)
 }
@@ -443,6 +476,12 @@ VIEWS.forEach((v, i) => {
   li.querySelector('button').addEventListener('click', () => setView(i))
   viewsEl.appendChild(li)
 })
+if (LEVELS.length > 1) {
+  const fl = $('#floors'); fl.hidden = false
+  LEVELS.forEach((l, i) => { const b = document.createElement('button'); b.dataset.level = String(i); b.textContent = l.name; b.addEventListener('click', () => setLevel(i)); fl.appendChild(b) })
+  const all = document.createElement('button'); all.dataset.level = 'all'; all.textContent = 'All'; all.addEventListener('click', () => setLevel('all')); fl.appendChild(all)
+  setLevel('all')
+}
 setView(0)
 document.querySelectorAll('.styles button').forEach(b => {
   b.classList.toggle('on', b.dataset.style === STYLE)
@@ -526,16 +565,16 @@ const mz = (x, z) => ROT ? (PLAN.x1 - x) * MS : (z - PLAN.z0) * MS
 const mrect = (a, b, c, d) => ROT ? [mx(a, b), mz(c, b), (d - b) * MS, (c - a) * MS] : [mx(a, b), mz(a, b), (c - a) * MS, (d - b) * MS]
 const mang = (dx, dz) => ROT ? Math.atan2(-dx, dz) : Math.atan2(dz, dx)   // plan direction → screen angle
 const planLayer = document.createElement('canvas'); planLayer.width = map.width; planLayer.height = map.height
-let planDrawn = false
 fetch(`footprints${SFX}.json`).then(r => r.ok ? r.json() : []).then(list => { if (list.length) { footprints.length = 0; footprints.push(...list); planDrawn = false; dirty = true } }).catch(() => {})
 function drawPlanLayer() {
   const g = planLayer.getContext('2d')
   g.clearRect(0, 0, map.width, map.height)
-  for (const r of PLAN_ROOMS) { g.fillStyle = r.fill; g.fillRect(...mrect(...r.rect)) }
+  const lvl = LEVELS.indexOf(LEVELS.find(l => l.plan === curPlan))
+  for (const r of curPlan.rooms) { g.fillStyle = r.fill; g.fillRect(...mrect(...r.rect)) }
   g.fillStyle = 'rgba(255,255,255,.45)'
-  for (const [x, z, w, d] of footprints) g.fillRect(...mrect(x, z, x + w, z + d))
+  for (const [x, z, w, d, fl] of footprints) if ((fl ?? 0) === lvl) g.fillRect(...mrect(x, z, x + w, z + d))
   g.lineCap = 'butt'
-  for (const [x1, z1, x2, z2, kind] of PLAN_WALLS) {
+  for (const [x1, z1, x2, z2, kind] of curPlan.walls) {
     g.setLineDash(kind === 'head' ? [3, 3] : [])
     g.strokeStyle = kind === 'glass' ? '#6fb6dc' : kind === 'head' ? '#9aa0a8' : '#262a2f'
     g.lineWidth = kind === 'wall' ? WALL_T * MS : 2
@@ -543,7 +582,7 @@ function drawPlanLayer() {
   }
   g.setLineDash([])
   g.font = '600 9px ' + getComputedStyle(document.body).fontFamily; g.fillStyle = 'rgba(30,32,36,.55)'; g.textAlign = 'center'
-  for (const r of PLAN_ROOMS) { const [a, b, c, d] = r.rect; if (r.label && Math.min(c - a, d - b) > 1.3) g.fillText(r.label.toUpperCase(), mx((a + c) / 2, (b + d) / 2), mz((a + c) / 2, (b + d) / 2) + 3) }
+  for (const r of curPlan.rooms) { const [a, b, c, d] = r.rect; if (r.label && Math.min(c - a, d - b) > 1.3) g.fillText(r.label.toUpperCase(), mx((a + c) / 2, (b + d) / 2), mz((a + c) / 2, (b + d) / 2) + 3) }
   planDrawn = true
 }
 const mapRoomEl = $('#mapRoom')
@@ -569,7 +608,7 @@ function drawMinimap() {
   }
   mg.fillStyle = '#2563eb'; mg.beginPath(); mg.arc(sx, sy, 4.5, 0, Math.PI * 2); mg.fill()
   mg.strokeStyle = '#fff'; mg.lineWidth = 1.5; mg.stroke()
-  const r = roomAt(walkMode ? px : tx, walkMode ? pz : tz)
+  const r = curPlan.roomAt(walkMode ? px : tx, walkMode ? pz : tz)
   const label = state.mode !== 'walk' && state.view === 0 && !tween ? 'Whole apartment' : (r ? r.label : 'Outside')
   if (label !== lastRoomLabel) { mapRoomEl.textContent = label; lastRoomLabel = label }
 }
@@ -579,6 +618,7 @@ map.addEventListener('click', e => {
   const x = ROT ? PLAN.x1 - v * (PLAN.x1 - PLAN.x0) : PLAN.x0 + u * (PLAN.x1 - PLAN.x0)
   const z = ROT ? PLAN.z0 + u * (PLAN.z1 - PLAN.z0) : PLAN.z0 + v * (PLAN.z1 - PLAN.z0)
   if (state.mode === 'walk') { camera.position.x = x; camera.position.z = z; return }
+  if (LEVELS.length > 1 && state.level !== 'all') { const off = camera.position.clone().sub(controls.target); const t = new THREE.Vector3(x, LEVELS[state.level].y + 0.6, z); flyTo(t.clone().add(off).toArray(), t.toArray(), 900); return }
   // keep the current orbit offset, move the target to the clicked point
   const off = camera.position.clone().sub(controls.target)
   const t = new THREE.Vector3(x, 0.6, z)

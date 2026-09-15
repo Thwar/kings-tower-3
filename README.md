@@ -11,6 +11,7 @@ The header switches between the two apartments; each has its own model, lighting
 | `/duna/?mode=walk` | its walkthrough |
 | `/b101/` | **Bloque B · Departamento 101** (100.20 m², one bedroom, long terrace) |
 | `/b101/?mode=walk` | its walkthrough |
+| `/casa/` | **Casa · 2 plantas** — a two-storey house with an attic from the architect's 1:100 set; floor selector, per-floor minimap and walkthrough |
 
 Cutaway and walkthrough are one page per apartment, one model and one lighting bake, so they always look the same.
 Every page also has a **Minimal / Gamer loft** design switch (`?style=loft`): the same apartment furnished as a grey-and-LED
@@ -26,6 +27,7 @@ python3 blender/render_views.py [--fast]          # Cycles renders → site/rend
 python3 blender/build_apartment.py --blend        # also writes blender/apartment.blend to open in Blender
 python3 blender/build_duna.py                     # the second apartment; add --apt=duna to the bake / render scripts → site/duna/
 python3 blender/build_b101.py                     # the third; --apt=b101 → site/b101/
+python3 blender/build_casa.py                     # the house (three levels); also regenerates site/casa/plan.js
 KT_STYLE=loft python3 blender/build_duna.py       # the loft design scheme; bake/render it with --style=loft → *-loft assets
 ```
 

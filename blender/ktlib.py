@@ -30,6 +30,14 @@ T = 0.14     # wall thickness
 # Interior design scheme. "bachelor" (default): off-white plaster, oak floor, walnut and black.
 # "loft": grey walls, polished concrete floor, LED coves, gaming desk, glass cabinet, lit vanity, sectional + fur rug.
 STYLE = os.environ.get("KT_STYLE", "bachelor")
+# Multi-storey builds: set_level(n, y) makes every primitive built afterwards carry level=n and sit y metres up.
+LEVEL = [0]
+Y_BASE = [0.0]
+
+
+def set_level(n, y=0.0):
+    LEVEL[0] = n
+    Y_BASE[0] = y
 # ----------------------------------------------------------------------------- scene reset
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -226,6 +234,7 @@ def _finish(obj, name, collection, material, props, bevel, segments=3, smooth=Fa
         c.objects.unlink(obj)
     coll(collection).objects.link(obj)
     obj.data.materials.append(material)
+    props.setdefault("level", LEVEL[0])
     for k, v in props.items():
         obj[k] = v
     bpy.context.view_layer.update()
@@ -249,6 +258,7 @@ def _finish(obj, name, collection, material, props, bevel, segments=3, smooth=Fa
 def box(name, center, size, material, collection="Furniture", bevel=0.012, rot_z=0.0, rot_x=0.0, segments=3, **props):
     """center/size in plan space: (x, y_up, z_south). Converted to Blender here."""
     x, y, z = center
+    y += Y_BASE[0]
     sx, sy, sz = size
     bpy.ops.mesh.primitive_cube_add(size=1, location=(x, -z, y))
     o = bpy.context.active_object
@@ -265,6 +275,7 @@ def soft(name, center, size, material, r=0.05, **kw):
 
 def cyl(name, center, radius, height, material, collection="Furniture", r2=None, verts=32, bevel=0.0, rot=(0, 0, 0), **props):
     x, y, z = center
+    y += Y_BASE[0]
     bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r2 if r2 is not None else radius, radius2=radius,
                                     depth=height, location=(x, -z, y), rotation=rot)
     o = bpy.context.active_object
@@ -273,6 +284,7 @@ def cyl(name, center, radius, height, material, collection="Furniture", r2=None,
 
 def sphere(name, center, radius, material, collection="Furniture", scale=(1, 1, 1), rot=(0, 0, 0), sub=2, **props):
     x, y, z = center
+    y += Y_BASE[0]
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=sub, radius=radius, location=(x, -z, y), rotation=rot)
     o = bpy.context.active_object
     o.scale = (scale[0], scale[2], scale[1])
@@ -282,7 +294,7 @@ def sphere(name, center, radius, material, collection="Furniture", scale=(1, 1, 
 
 def floor_plane(name, rect, material, y=0.0, **props):
     x1, z1, x2, z2 = rect
-    bpy.ops.mesh.primitive_plane_add(size=1, location=((x1 + x2) / 2, -(z1 + z2) / 2, y))
+    bpy.ops.mesh.primitive_plane_add(size=1, location=((x1 + x2) / 2, -(z1 + z2) / 2, y + Y_BASE[0]))
     o = bpy.context.active_object
     o.scale = (x2 - x1, z2 - z1, 1)
     bpy.ops.object.transform_apply(scale=True)
@@ -299,15 +311,18 @@ X = dict(ext=(True, True))
 EXT = T / 2 - 0.008   # 8 mm short of the neighbouring wall's far face (past its 6 mm bevel): hidden inside, never coincident
 
 
-def build_walls(walls, frames, height=H):
+def build_walls(walls, frames, height=H, y_base=0.0, level=None):
+    level = LEVEL[0] if level is None else level
     """walls and dark aluminium frames (x1,z1,x2,z2,y0,y1,side) as boxes with the viewer's tags"""
     for i, (x1, z1, x2, z2, side, o) in enumerate(walls):
         y0, y1 = o.get("y0", 0), o.get("y1", height)
+        base_floor = y0 == 0
         # Walls that meet overlap inside the junction (see ext). Their top faces would be coplanar there and
         # z-fight (black squares in Cycles), so every wall top gets its own sub-centimetre offset below the ceiling.
         jit = 0.0004 * (i % 23)
         if y1 >= height:
             y1 = height - jit
+        y0, y1 = y0 + y_base, y1 + y_base
         dx, dz = x2 - x1, z2 - z1
         length, rot = math.hypot(dx, dz), math.atan2(dz, dx)
         ux, uz = dx / length, dz / length
@@ -317,17 +332,17 @@ def build_walls(walls, frames, height=H):
         cx, cz = (x1 + x2) / 2 + ux * (a1 - a0) / 2, (z1 + z2) / 2 + uz * (a1 - a0) / 2
         if o.get("glass"):
             # a pane sits between a sill and a head: sink 1 cm into both so no face of it is coplanar with theirs
-            g0, g1 = (y0 - 0.01 if y0 > 0 else y0), (y1 + 0.01 if y1 < height - 0.05 else y1)
-            box(f"Glass_{side}_{i:02d}", (cx, (g0 + g1) / 2, cz), (length_ext, g1 - g0, 0.02), M["glass"], "Glass",
-                bevel=0, rot_z=rot, part="glass", side=side)
+            g0, g1 = (y0 - 0.01 if not base_floor else y0), (y1 + 0.01 if y1 < y_base + height - 0.05 else y1)
+            box(f"Glass_{side}_L{level}_{i:02d}", (cx, (g0 + g1) / 2, cz), (length_ext, g1 - g0, 0.02), M["glass"], "Glass",
+                bevel=0, rot_z=rot, part="glass", side=side, level=level)
             continue
-        box(f"Wall_{side}_{i:02d}", (cx, (y0 + y1) / 2, cz), (length_ext, y1 - y0, T),
-            M["plaster"], "Walls", bevel=0.006, rot_z=rot, part="wall", side=side)
-        if y0 == 0 and not o.get("noskirt"):
+        box(f"Wall_{side}_L{level}_{i:02d}", (cx, (y0 + y1) / 2, cz), (length_ext, y1 - y0, T),
+            o.get("mat") or M["plaster"], "Walls", bevel=0.006, rot_z=rot, part="wall", side=side, level=level)
+        if base_floor and not o.get("noskirt"):
             s0, s1 = (0.01 if e0 else 0), (0.01 if e1 else 0)
             scx, scz = cx + ux * (s1 - s0) / 2, cz + uz * (s1 - s0) / 2
-            box(f"Skirting_{side}_{i:02d}", (scx, (0.08 - jit) / 2, scz), (length_ext + s0 + s1, 0.08 - jit, T + 0.024), M["skirting"], "Walls",
-                bevel=0.003, rot_z=rot, part="wall", side=side)
+            box(f"Skirting_{side}_L{level}_{i:02d}", (scx, y_base + (0.08 - jit) / 2, scz), (length_ext + s0 + s1, 0.08 - jit, T + 0.024), M["skirting"], "Walls",
+                bevel=0.003, rot_z=rot, part="wall", side=side, level=level)
 
     for i, (x1, z1, x2, z2, y0, y1, fside) in enumerate(frames):
         dx, dz = x2 - x1, z2 - z1
@@ -336,13 +351,14 @@ def build_walls(walls, frames, height=H):
         ux, uz = dx / length, dz / length
         for j, (off, y, sz) in enumerate([(0, y0 + 0.025, (length + 0.06, 0.05)), (0, y1 - 0.025, (length + 0.06, 0.05)),
                                           (-length / 2, (y0 + y1) / 2, (0.05, y1 - y0)), (length / 2, (y0 + y1) / 2, (0.05, y1 - y0))]):
-            box(f"Frame_{i}_{j}", (cx + ux * off, y, cz + uz * off), (sz[0], sz[1], T + 0.04), M["frame"], "Walls",
-                bevel=0.004, rot_z=rot, part="frame", side=fside)
+            box(f"Frame_L{level}_{i}_{j}", (cx + ux * off, y + y_base, cz + uz * off), (sz[0], sz[1], T + 0.04), M["frame"], "Walls",
+                bevel=0.004, rot_z=rot, part="frame", side=fside, level=level)
 
 
-def downlights(points, height=H):
+def downlights(points, height=H, level=None):
+    level = LEVEL[0] if level is None else level
     for i, (x, z) in enumerate(points):
-        cyl(f"Downlight_{i}", (x, height - 0.004, z), 0.05, 0.008, M["downlight"], "Ceiling", part="ceiling")
+        cyl(f"Downlight_L{level}_{i}", (x, height - 0.004, z), 0.05, 0.008, M["downlight"], "Ceiling", part="ceiling", level=level)
 
 
 # ----------------------------------------------------------------------------- furniture helpers
@@ -488,6 +504,71 @@ def wall_art(name, x, y, z, w, h, rot, mat_in, frame=True, room="living", depth=
 
 
 F = dict(part="furniture")
+
+
+# ----------------------------------------------------------------------------- house pieces (multi-storey)
+def prism(name, pts, y0, y1, material, collection="Walls", **props):
+    """vertical extrusion of a 2D polygon in plan space (list of (x, z)), from height y0 to y1 — gable ends, landings"""
+    import bmesh
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    y0, y1 = y0 + Y_BASE[0], y1 + Y_BASE[0]
+    bottom = [bm.verts.new((x, -z, y0)) for x, z in pts]
+    top = [bm.verts.new((x, -z, y1)) for x, z in pts]
+    bm.faces.new(bottom[::-1]); bm.faces.new(top)
+    n = len(pts)
+    for i in range(n):
+        bm.faces.new((bottom[i], bottom[(i + 1) % n], top[(i + 1) % n], top[i]))
+    bm.normal_update()
+    bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me)
+    scene.collection.objects.link(o)
+    bpy.context.view_layer.objects.active = o
+    return _finish(o, name, collection, material, props, 0)
+
+
+def roof_slab(name, x1, x2, z_eave, z_ridge, y_eave, y_ridge, material, thickness=0.12, collection="Ceiling", **props):
+    """one pitched roof plane between an eave line and a ridge line (both along x), as a tilted box"""
+    dz, dy = z_ridge - z_eave, y_ridge - y_eave
+    length = math.hypot(dz, dy)
+    ang = math.atan2(dy, -dz)          # tilt about x: positive raises the ridge end when the ridge is north of the eave
+    box(name, ((x1 + x2) / 2, (y_eave + y_ridge) / 2 + thickness / 2 * math.cos(ang), (z_eave + z_ridge) / 2),
+        (x2 - x1, thickness, length), material, collection, bevel=0, rot_x=ang, **props)
+
+
+def stair_flight(name, x1, x2, z_start, z_end, y0, y1, steps, material, room="hall"):
+    """straight flight from z_start (bottom, height y0) to z_end (top, height y1): treads and risers as boxes"""
+    run = (z_end - z_start) / steps
+    rise = (y1 - y0) / steps
+    for i in range(steps):
+        y = y0 + rise * (i + 1)
+        zc = z_start + run * (i + 0.5)
+        box(f"{name}_t{i}", ((x1 + x2) / 2, y - 0.02, zc), (x2 - x1, 0.04, abs(run) + 0.02), material, bevel=0.004,
+            part="furniture", room=room)
+        box(f"{name}_r{i}", ((x1 + x2) / 2, y - rise / 2 - 0.02, z_start + run * i), (x2 - x1, rise - 0.02, 0.03), material, bevel=0,
+            part="furniture", room=room)
+
+
+def railing(name, x1, z1, x2, z2, y0, h=1.0, material=None, glass=False, room="hall", posts=3):
+    """handrail on posts (or a glass balustrade) between two points at floor height y0"""
+    material = material or M["railing"]
+    dx, dz = x2 - x1, z2 - z1
+    length, rot = math.hypot(dx, dz), math.atan2(dz, dx)
+    cx, cz = (x1 + x2) / 2, (z1 + z2) / 2
+    box(f"{name}_cap", (cx, y0 + h, cz), (length, 0.04, 0.05), material, bevel=0.004, rot_z=rot, part="furniture", room=room)
+    if glass:
+        box(f"{name}_glass", (cx, y0 + h / 2 + 0.05, cz), (length - 0.02, h - 0.1, 0.012), M["glass"], "Glass", bevel=0, rot_z=rot,
+            part="glass", side="I", room=room)
+    for i in range(posts):
+        t = (i + 0.5) / posts if posts > 1 else 0.5
+        box(f"{name}_p{i}", (x1 + dx * t, y0 + h / 2, z1 + dz * t), (0.03, h, 0.03), material, bevel=0, rot_z=rot, part="furniture", room=room)
+
+
+def column(name, x, z, y0, h, r=0.16, material=None, room="porch"):
+    material = material or M["plaster"]
+    cyl(f"{name}_shaft", (x, y0 + h / 2, z), r, h, material, "Structure", verts=24, part="slab", room=room)
+    box(f"{name}_cap", (x, y0 + h - 0.06, z), (r * 2.6, 0.12, r * 2.6), material, "Structure", bevel=0.01, part="slab", room=room)
+    box(f"{name}_base", (x, y0 + 0.06, z), (r * 2.6, 0.12, r * 2.6), material, "Structure", bevel=0.01, part="slab", room=room)
 
 
 # ----------------------------------------------------------------------------- loft pieces
@@ -692,6 +773,43 @@ def loft_coffee_table(name, x, z, room="living"):
                (M["plush_orange"], M["chair_red"], M["plush_yellow"])[i % 3], sub=1, part="furniture", room=room)
     for i, (dx, dz) in enumerate([(-0.25, 0.1), (0.05, 0.15), (0.3, 0.05)]):
         cyl(f"{name}_plate{i}", (x + dx, 0.455, z + dz), 0.09, 0.012, M["white_gloss"], part="furniture", room=room)
+
+
+# ----------------------------------------------------------------------------- 2D plan export (minimap + walk collision)
+def write_plan(path, levels):
+    """writes site/<apt>/plan.js from the same wall lists the model is built from, one entry per level:
+    dict(walls=<build_walls input>, rooms=[(key, (x1,z1,x2,z2), fill, label)], bounds=(x0,z0,x1,z1), extra=[(x1,z1,x2,z2,kind)])"""
+    import json
+    out = ["// Generated by the build script from its wall lists — do not edit by hand (x east, z south, metres).",
+           f"export const T = {T}", "export const levels = ["]
+    for lv in levels:
+        segs = {}
+        for x1, z1, x2, z2, side, o in lv["walls"]:
+            key = (round(x1, 3), round(z1, 3), round(x2, 3), round(z2, 3))
+            segs.setdefault(key, []).append(o)
+        lines = []
+        for (x1, z1, x2, z2), opts in segs.items():
+            if any(o.get("glass") for o in opts):
+                kind = "glass"
+            elif all(o.get("y0", 0) > 0 for o in opts):
+                kind = "head"
+            else:
+                kind = "wall"
+            lines.append(f"[{x1:g}, {z1:g}, {x2:g}, {z2:g}, '{kind}']")
+        for x1, z1, x2, z2, kind in lv.get("extra", []):
+            lines.append(f"[{x1:g}, {z1:g}, {x2:g}, {z2:g}, '{kind}']")
+        rooms = ", ".join(f"{{ key: '{k}', rect: [{r[0]:g}, {r[1]:g}, {r[2]:g}, {r[3]:g}], fill: '{f}', label: {json.dumps(l)} }}" for k, r, f, l in lv["rooms"])
+        x0, z0, x1, z1 = lv["bounds"]
+        out.append("  { walls: [" + ", ".join(lines) + "],")
+        out.append("    rooms: [" + rooms + "],")
+        out.append(f"    BOUNDS: {{ x0: {x0:g}, x1: {x1:g}, z0: {z0:g}, z1: {z1:g} }} }},")
+    out.append("]")
+    out.append("for (const l of levels) { l.T = T; l.roomAt = (x, z) => { for (const r of l.rooms) { const [a, b, c, d] = r.rect; if (x >= a && x <= c && z >= b && z <= d) return r } return null } }")
+    out.append("export const walls = levels[0].walls, rooms = levels[0].rooms, BOUNDS = levels[0].BOUNDS, roomAt = levels[0].roomAt")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write("\n".join(out) + "\n")
+    print("wrote", path)
 
 
 # ----------------------------------------------------------------------------- mirror
