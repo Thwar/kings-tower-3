@@ -52,7 +52,7 @@ XL = 3.16                     # comedor-living east wall centreline
 XK = 6.51                     # cocina / hall east wall centreline
 ZC = 2.74                     # cocina south wall (hall north wall)
 WC_X0, WC_X1, WC_Z0, WC_Z1, WC_DROP = 4.16, XK, 5.71, 7.0, 0.45
-ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 3.3, 6.6, 14        # the main flight: x band, bottom z, top z, risers   # the w.c. footprint, sunk two steps below the hall
+ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 3.95, 6.7, 14        # the main flight: x band, bottom z (clear of the estudio door), top z, risers
 
 
 def floorp(name, rect, material, y, level, room):
@@ -305,7 +305,7 @@ frames1 = [
 ]
 
 # upper floor slab (in pieces around the stair well x 4.9–6.44, z 3.74–5.64), then everything else relative to Y1
-SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 4.4, 6.7
+SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 4.85, 6.75
 for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, SW_X0, ZS + 0.07), (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07),
                                        (SW_X0, ZN1 - 0.07, SW_X1, SW_Z0), (SW_X0, SW_Z1, SW_X1, ZS + 0.07)]):
     box(f"Slab1_{i}", ((x1 + x2) / 2, (H0 + Y1) / 2, (z1 + z2) / 2), (x2 - x1, Y1 - H0, z2 - z1), M["concrete"], "Structure", bevel=0, part="slab", level=1)
