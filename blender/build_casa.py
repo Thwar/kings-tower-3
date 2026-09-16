@@ -51,7 +51,8 @@ ZS = 9.06                     # south face of the upper floor / porch edge
 XL = 3.16                     # comedor-living east wall centreline
 XK = 6.51                     # cocina / hall east wall centreline
 ZC = 2.74                     # cocina south wall (hall north wall)
-WC_X0, WC_X1, WC_Z0, WC_Z1, WC_DROP = 4.16, XK, 5.71, 7.0, 0.45   # the w.c. footprint, sunk two steps below the hall
+WC_X0, WC_X1, WC_Z0, WC_Z1, WC_DROP = 4.16, XK, 5.71, 7.0, 0.45
+ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 3.3, 6.6, 14        # the main flight: x band, bottom z, top z, risers   # the w.c. footprint, sunk two steps below the hall
 
 
 def floorp(name, rect, material, y, level, room):
@@ -122,13 +123,12 @@ box("Slab_wc", ((WC_X0 + WC_X1) / 2, -WC_DROP - 0.17, (WC_Z0 + WC_Z1) / 2), (WC_
 for i, (cx, cz, sx, sz) in enumerate([((WC_X0 + WC_X1) / 2, WC_Z0, WC_X1 - WC_X0 + T, T), ((WC_X0 + WC_X1) / 2, WC_Z1, WC_X1 - WC_X0 + T, T),
                                       (WC_X0, (WC_Z0 + WC_Z1) / 2, T, WC_Z1 - WC_Z0), (WC_X1, (WC_Z0 + WC_Z1) / 2, T, WC_Z1 - WC_Z0)]):
     box(f"WcWallLow_{i}", (cx, -WC_DROP / 2 - 0.02, cz), (sx, WC_DROP - 0.04, sz), M["plaster"], "Walls", bevel=0, part="wall", side="I", level=0)
-box("Door_wc", (4.1, 1.05, 6.95), (0.04, 2.1, 0.7), M["mahogany"], "Furniture", part="furniture", room="wc", level=0)
-box("Door_wc_glass", (4.1, 1.35, 6.95), (0.05, 0.9, 0.5), M["glass"], "Glass", bevel=0, part="glass", side="I", room="wc", level=0)
-for k, y in enumerate([1.05, 1.35, 1.65]):
-    box(f"Door_wc_bar{k}", (4.1, y, 6.95), (0.06, 0.02, 0.5), M["mahogany"], "Furniture", bevel=0, part="furniture", room="wc", level=0)
+wood_railing("Rail_wc", 4.16, 5.72, 4.16, 6.78, -WC_DROP, h=0.9, material=M["mahogany"], room="wc", newels=(False, True))   # along the steps' open side
 box("WcStep1", (4.48, -0.11, 6.25), (0.5, 0.22, 1.1), M["stone"], "Structure", bevel=0.004, part="slab", level=0)
 box("WcStep2", (4.25, -0.34, 6.25), (0.16, 0.22, 1.1), M["stone"], "Structure", bevel=0.004, part="slab", level=0)
-box("BarTop", (4.6, 1.08, ZC), (2.1, 0.05, 0.55), M["bar_tile"], "Furniture", bevel=0.004, part="furniture", room="kitchen", level=0)
+box("BarTop", (4.6, 1.08, ZC), (2.1, 0.05, 0.55), M["quartz"], "Furniture", bevel=0.004, part="furniture", room="kitchen", level=0)
+box("BarPillar", (5.6, H0 / 2, ZC), (0.3, H0, 0.3), M["plaster"], "Walls", bevel=0.004, part="wall", side="I", level=0)
+box("BarFront", (4.6, 0.52, ZC + T / 2 + 0.011), (2.0, 1.02, 0.02), M["bar_tile"], "Furniture", bevel=0, part="furniture", room="kitchen", level=0)
 box("BarBeam", (5.0, 2.3 - 0.075, ZC), (2.9, 0.15, T + 0.06), M["band"], "Walls", bevel=0.004, part="wall", side="I", level=0)
 # ground ceilings: flat over hall/estudio/w.c., the lean-to slope over comedor + cocina (2.7 at the north wall → 3.1 at z=2)
 box("Ceiling0_main", ((XL + W) / 2, H0 + 0.05, (ZC + 7.14) / 2), (W - XL + T, 0.1, 7.14 - ZC + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=0)
@@ -136,6 +136,12 @@ box("Ceiling0_living", (XL / 2, H0 + 0.05, (ZN1 + 7.85) / 2), (XL + T, 0.1, 7.85
 roof_slab("Ceiling0_leanto", -0.3, XK + 0.1, -0.3, ZN1, H0 - 0.1, 3.1, M["ceiling"], thickness=0.08, part="ceiling", level=0)
 roof_slab("Roof_leanto", -0.35, XK + 0.15, -0.4, ZN1 + 0.05, H0 + 0.05, 3.35, M["roof"], thickness=0.1, part="ceiling", level=0)
 downlights([(1.5, 1.6), (1.5, 5.5), (4.8, 1.3), (4.8, 4.2), (8.2, 4.5), (5.3, 6.4)], height=H0)
+for nm, (cx, cz, sx, sz) in {"CorniceN": ((XL + XK) / 2, ZC + 0.08, XK - XL, 0.1), "CorniceS": ((XL + XK) / 2, 7.0 - 0.08, XK - XL, 0.1),
+                             "CorniceE": (XK - 0.08, (ZC + 7.0) / 2, 0.1, 7.0 - ZC), "CorniceLivN": (XL / 2, 0.08, XL, 0.1),
+                             "CorniceLivW": (0.08, 3.9, 0.1, 7.85), "CorniceLivS": (XL / 2, 7.85 - 0.08, XL, 0.1)}.items():
+    box(nm, (cx, H0 - 0.06, cz), (sx, 0.12, sz), M["band"], "Ceiling", bevel=0.01, segments=4, part="ceiling", level=0)
+box("BeamHall", ((XL + XK) / 2, H0 - 0.15, 4.4), (XK - XL, 0.3, 0.25), M["band"], "Ceiling", bevel=0.01, part="ceiling", level=0)
+box("BeamStair", (ST_X0 - 0.12, H0 - 0.15, (ZC + 7.0) / 2), (0.25, 0.3, 7.0 - ZC), M["band"], "Ceiling", bevel=0.01, part="ceiling", level=0)
 
 # porch: four columns carrying the upper floor, two steps up to the door
 for i, x in enumerate([0.25, 3.35, 6.35, 9.55]):
@@ -148,12 +154,31 @@ box("StoneBase_W", (-0.41, -0.17, ZS / 2), (0.02, 0.3, ZS + 0.8), M["stone"], "S
 box("StoneBase_E", (W + 0.41, -0.17, ZS / 2), (0.02, 0.3, ZS + 0.8), M["stone"], "Structure", bevel=0, part="slab", level=0)
 box("Step1", (3.7, 0.08, ZS + 0.35), (1.4, 0.16, 0.7), M["stone"], "Structure", bevel=0.01, part="slab", level=0, room="porch")
 box("Step2", (3.7, -0.02, ZS + 0.75), (1.6, 0.16, 0.5), M["stone"], "Structure", bevel=0.01, part="slab", level=0, room="porch")
-box("Door_entry", (3.7, 1.05, 7.08), (0.9, 2.1, 0.05), M["walnut"], "Furniture", part="furniture", room="hall", level=0)
-box("Door_handle", (4.02, 1.02, 7.13), (0.02, 0.3, 0.02), M["brass"], "Furniture", bevel=0.005, part="furniture", room="hall", level=0)
+def panel_door(name, x, z, rot, w=0.85, room="hall", glass=False):
+    """dark panelled door leaf: two raised panels with an arched top rail, optional glazed upper panel"""
+    c, s = math.cos(rot), math.sin(rot)
+    P = lambda dx, dz: (x + dx * c - dz * s, z + dx * s + dz * c)
+    px, pz = P(0, 0)
+    box(f"{name}", (px, 1.05, pz), (w, 2.1, 0.045), M["mahogany"], "Furniture", bevel=0.004, rot_z=rot, part="furniture", room=room)
+    for k, (y, h) in enumerate([(0.55, 0.7), (1.5, 0.9)]):
+        for j, dx in enumerate([-w / 4, w / 4]):
+            px, pz = P(dx, -0.03)
+            m = M["glass"] if (glass and k == 1) else M["mahogany"]
+            box(f"{name}_p{k}{j}", (px, y, pz), (w / 2 - 0.1, h, 0.012), m, "Glass" if m is M["glass"] else "Furniture", bevel=0.003, rot_z=rot,
+                part="glass" if m is M["glass"] else "furniture", side="I", room=room)
+    px, pz = P(0, -0.035)
+    box(f"{name}_arch", (px, 2.0, pz), (w - 0.1, 0.05, 0.01), M["mahogany"], "Furniture", bevel=0.003, rot_z=rot, rot_x=0, part="furniture", room=room)
+    px, pz = P(w / 2 - 0.08, -0.04)
+    box(f"{name}_handle", (px, 1.02, pz), (0.02, 0.12, 0.02), M["brass"], "Furniture", bevel=0, rot_z=rot, part="furniture", room=room)
+
+
+panel_door("Door_entry", 3.7, 7.08, 0, w=0.9)
+panel_door("Door_patio", XK + 0.05, 1.6, math.pi / 2, w=0.8, room="kitchen", glass=True)
+panel_door("Door_wc", 4.1, 6.95, math.pi / 2, w=0.7, room="wc", glass=True)
+panel_door("Door_estudio", XK + 0.05, 3.4, math.pi / 2, w=0.8, room="estudio")
 
 # straight stair along the east side of the hall: starts on the floor in front of the estudio door (z 3.3) and rises
 # southward to the upper hall (z 6.6); the w.c. sits under its high end. Handrail on the open (west) side.
-ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 3.3, 6.6, 14
 stair_flight("Stair", ST_X0, ST_X1, ST_Z0, ST_Z1, 0.0, Y1, ST_N, M["stair"])
 _run, _rise = (ST_Z1 - ST_Z0) / ST_N, Y1 / ST_N
 for i in range(ST_N):   # turned balusters, one per tread
@@ -303,6 +328,10 @@ downlights([(2.0, 3.7), (1.5, 7.3), (5.3, 2.8), (5.3, 6.0), (8.2, 4.5), (8.2, 7.
 # stair well railing on the upper floor
 wood_railing("Rail_well_w", SW_X0, SW_Z1, SW_X0, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(True, True))
 wood_railing("Rail_well_n", SW_X0 + 0.09, SW_Z0, SW_X1 - 0.05, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(False, False))
+panel_door("Door_dormNW", 4.16 - 0.05, 4.9, math.pi / 2, w=0.8, room="dorm1")
+panel_door("Door_dormSW", XL - 0.05, 6.4, math.pi / 2, w=0.8, room="dorm2")
+panel_door("Door_bano", 5.85, 3.67 - 0.05, 0, w=0.7, room="bano")
+panel_door("Door_padres", XK + 0.05, 6.8, math.pi / 2, w=0.8, room="padres")
 # flight to the attic: starts on the landing by the south wall and climbs north over the well, open treads on a steel stringer
 ST2_Z0, ST2_Z1, ST2_N = 6.9, 4.0, 13
 stair_flight("Stair2", ST_X0, ST_X1, ST2_Z0, ST2_Z1, 0.0, Y2 - Y1, ST2_N, M["mahogany"], open_risers=True, stringer=M["black"])
