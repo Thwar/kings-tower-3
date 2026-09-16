@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ktlib import (T, M, X, STYLE, mat, tmat, box, soft, cyl, sphere, floor_plane, build_walls, downlights,  # noqa: E402
                    plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export,
-                   prism, roof_slab, stair_flight, railing, column, rnd, set_level, write_plan)
+                   prism, roof_slab, stair_flight, railing, column, rnd, set_level, write_plan, wood_railing)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "site", "casa", "apartment.glb" if STYLE == "bachelor" else f"apartment-{STYLE}.glb")
@@ -38,7 +38,8 @@ M["wood_frame"] = tmat("wood_frame", "walnut", tint="#7a4a2a", clearcoat=0.3)
 M["iron"] = mat("iron", "#dcdcdc", 0.45, 0.6)
 M["bar_tile"] = tmat("bar_tile", "tile", tint="#e8e2d6")
 M["mahogany"] = tmat("mahogany", "walnut", tint="#5a2a1a", clearcoat=0.4)
-M["stair"] = M["mahogany"]
+M["stair"] = tmat("stair_tile", "tile", tint="#d8c8a6")            # the lower flight is tiled, beige
+M["plaster"] = tmat("plaster_cream", "plaster", tint="#ecdfc4")     # cream interior walls
 CLAD0 = {s_: M["terracotta"] for s_ in "NSEW"}
 CLAD1 = {s_: M["salmon"] for s_ in "NSEW"}
 
@@ -121,6 +122,10 @@ box("Slab_wc", ((WC_X0 + WC_X1) / 2, -WC_DROP - 0.17, (WC_Z0 + WC_Z1) / 2), (WC_
 for i, (cx, cz, sx, sz) in enumerate([((WC_X0 + WC_X1) / 2, WC_Z0, WC_X1 - WC_X0 + T, T), ((WC_X0 + WC_X1) / 2, WC_Z1, WC_X1 - WC_X0 + T, T),
                                       (WC_X0, (WC_Z0 + WC_Z1) / 2, T, WC_Z1 - WC_Z0), (WC_X1, (WC_Z0 + WC_Z1) / 2, T, WC_Z1 - WC_Z0)]):
     box(f"WcWallLow_{i}", (cx, -WC_DROP / 2 - 0.02, cz), (sx, WC_DROP - 0.04, sz), M["plaster"], "Walls", bevel=0, part="wall", side="I", level=0)
+box("Door_wc", (4.1, 1.05, 6.95), (0.04, 2.1, 0.7), M["mahogany"], "Furniture", part="furniture", room="wc", level=0)
+box("Door_wc_glass", (4.1, 1.35, 6.95), (0.05, 0.9, 0.5), M["glass"], "Glass", bevel=0, part="glass", side="I", room="wc", level=0)
+for k, y in enumerate([1.05, 1.35, 1.65]):
+    box(f"Door_wc_bar{k}", (4.1, y, 6.95), (0.06, 0.02, 0.5), M["mahogany"], "Furniture", bevel=0, part="furniture", room="wc", level=0)
 box("WcStep1", (4.48, -0.11, 6.25), (0.5, 0.22, 1.1), M["stone"], "Structure", bevel=0.004, part="slab", level=0)
 box("WcStep2", (4.25, -0.34, 6.25), (0.16, 0.22, 1.1), M["stone"], "Structure", bevel=0.004, part="slab", level=0)
 box("BarTop", (4.6, 1.08, ZC), (2.1, 0.05, 0.55), M["bar_tile"], "Furniture", bevel=0.004, part="furniture", room="kitchen", level=0)
@@ -249,8 +254,10 @@ walls1 = [
     (7.4, ZS, 9.0, ZS, "S", dict(y0=0, y1=0.9)), (7.4, ZS, 9.0, ZS, "S", dict(y0=2.2, y1=H1, noskirt=True)), (7.4, ZS, 9.0, ZS, "S", dict(y0=0.9, y1=2.2, glass=True)),
     (0, ZS, 0.6, ZS, "S", dict(ext=(True, False))), (2.5, ZS, XL, ZS, "S", dict(ext=(False, True))),     # SW dormitorio south wall, window x 0.6–2.5
     (0.6, ZS, 2.5, ZS, "S", dict(y0=0, y1=0.9)), (0.6, ZS, 2.5, ZS, "S", dict(y0=2.2, y1=H1, noskirt=True)), (0.6, ZS, 2.5, ZS, "S", dict(y0=0.9, y1=2.2, glass=True)),
-    (XL, 7.14, 4.3, 7.14, "S", dict(ext=(True, False))), (5.3, 7.14, XK, 7.14, "S", dict(ext=(False, True))),   # hall south wall, balcony door x 4.3–5.3
-    (4.3, 7.14, 5.3, 7.14, "S", dict(y0=2.2, y1=H1, noskirt=True)),
+    (XL, 7.14, 3.5, 7.14, "S", dict(ext=(True, False))), (4.5, 7.14, 5.5, 7.14, "S", {}), (6.3, 7.14, XK, 7.14, "S", dict(ext=(False, True))),
+    (3.5, 7.14, 4.5, 7.14, "S", dict(y0=2.2, y1=H1, noskirt=True)),                                              # balcony door x 3.5–4.5
+    (5.5, 7.14, 6.3, 7.14, "S", dict(y0=0, y1=0.8)), (5.5, 7.14, 6.3, 7.14, "S", dict(y0=2.4, y1=H1, noskirt=True)),
+    (5.5, 7.14, 6.3, 7.14, "S", dict(y0=0.8, y1=2.4, glass=True)),                                                # tall frosted window beside the stair
     (0, ZN1, 0, 2.8, "W", dict(ext=(True, False))), (0, 4.4, 0, 6.2, "W", {}), (0, 8.0, 0, ZS, "W", dict(ext=(False, True))),
     (0, 2.8, 0, 4.4, "W", dict(y0=0, y1=0.9)), (0, 2.8, 0, 4.4, "W", dict(y0=2.2, y1=H1, noskirt=True)), (0, 2.8, 0, 4.4, "W", dict(y0=0.9, y1=2.2, glass=True)),
     (0, 6.2, 0, 8.0, "W", dict(y0=0, y1=0.9)), (0, 6.2, 0, 8.0, "W", dict(y0=2.2, y1=H1, noskirt=True)), (0, 6.2, 0, 8.0, "W", dict(y0=0.9, y1=2.2, glass=True)),
@@ -269,7 +276,7 @@ walls1 = [
 walls1 = [w for w in walls1 if not (w[0] == w[2] and w[1] == w[3])]   # drop the zero-length placeholder
 frames1 = [
     (W, 5.4, W, 7.4, 0.9, 2.2, "E"), (7.4, ZS, 9.0, ZS, 0.9, 2.2, "S"), (0.6, ZS, 2.5, ZS, 0.9, 2.2, "S"),
-    (4.3, 7.14, 5.3, 7.14, 0, 2.2, "S"), (0, 2.8, 0, 4.4, 0.9, 2.2, "W"), (0, 6.2, 0, 8.0, 0.9, 2.2, "W"),
+    (3.5, 7.14, 4.5, 7.14, 0, 2.2, "S"), (5.5, 7.14, 6.3, 7.14, 0.8, 2.4, "S"), (0, 2.8, 0, 4.4, 0.9, 2.2, "W"), (0, 6.2, 0, 8.0, 0.9, 2.2, "W"),
 ]
 
 # upper floor slab (in pieces around the stair well x 4.9–6.44, z 3.74–5.64), then everything else relative to Y1
@@ -294,8 +301,26 @@ floorp("Floor1_balcon", (XL, 7.14, XK, ZS), M["stone"], 0, 1, "balcon")
 box("Ceiling1", (W / 2, H1 + 0.05, (ZN1 + ZS) / 2), (W + T, 0.1, ZS - ZN1 + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=1)
 downlights([(2.0, 3.7), (1.5, 7.3), (5.3, 2.8), (5.3, 6.0), (8.2, 4.5), (8.2, 7.5)], height=H1)
 # stair well railing on the upper floor
-railing("Rail_well_w", SW_X0, SW_Z0, SW_X0, SW_Z1, 0, h=1.0, posts=4)
-railing("Rail_well_n", SW_X0, SW_Z0, SW_X1, SW_Z0, 0, h=1.0, posts=3)
+wood_railing("Rail_well_w", SW_X0, SW_Z1, SW_X0, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(True, True))
+wood_railing("Rail_well_n", SW_X0 + 0.09, SW_Z0, SW_X1 - 0.05, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(False, False))
+# flight to the attic: starts on the landing by the south wall and climbs north over the well, open treads on a steel stringer
+ST2_Z0, ST2_Z1, ST2_N = 6.9, 4.0, 13
+stair_flight("Stair2", ST_X0, ST_X1, ST2_Z0, ST2_Z1, 0.0, Y2 - Y1, ST2_N, M["mahogany"], open_risers=True, stringer=M["black"])
+_run2, _rise2 = (ST2_Z1 - ST2_Z0) / ST2_N, (Y2 - Y1) / ST2_N
+for i in range(ST2_N):
+    z = ST2_Z0 + _run2 * (i + 0.5); y = _rise2 * (i + 1)
+    cyl(f"Baluster2_{i}", (ST_X0 + 0.05, y + 0.42, z), 0.018, 0.84, M["mahogany"], verts=10, part="furniture", room="hall1")
+    sphere(f"Baluster2Knob{i}", (ST_X0 + 0.05, y + 0.3, z), 0.032, M["mahogany"], sub=1, part="furniture", room="hall1")
+    sphere(f"Baluster2Knob2{i}", (ST_X0 + 0.05, y + 0.58, z), 0.026, M["mahogany"], sub=1, part="furniture", room="hall1")
+_ang2 = math.atan2(Y2 - Y1, ST2_Z1 - ST2_Z0)
+box("Stair2Rail", (ST_X0 + 0.05, (Y2 - Y1) / 2 + 0.9, (ST2_Z0 + ST2_Z1) / 2), (0.07, 0.06, math.hypot(Y2 - Y1, ST2_Z1 - ST2_Z0) + 0.2), M["mahogany"], bevel=0.01, segments=4,
+    rot_x=-_ang2, part="furniture", room="hall1")
+box("Newel2", (ST_X0 + 0.05, 0.5, ST2_Z0 + 0.12), (0.09, 1.0, 0.09), M["mahogany"], bevel=0.008, part="furniture", room="hall1")
+sphere("Newel2Ball", (ST_X0 + 0.05, 1.07, ST2_Z0 + 0.12), 0.075, M["mahogany"], sub=2, part="furniture", room="hall1")
+for k, x in enumerate([5.9]):
+    box(f"WinMullion{k}", (x, 1.6, 7.14), (0.04, 1.56, T + 0.07), M["wood_frame"], "Walls", bevel=0, part="frame", side="S")
+for k, y in enumerate([1.2, 1.6, 2.0]):
+    box(f"WinBar{k}", (5.9, y, 7.14), (0.76, 0.04, T + 0.07), M["wood_frame"], "Walls", bevel=0, part="frame", side="S")
 railing("Rail_balcon", XL + 0.1, ZS - 0.03, XK - 0.1, ZS - 0.03, 0.12, h=0.95, material=M["iron"], posts=22)   # wrought iron, white
 box("Curb_balcon", ((XL + XK) / 2, 0.06, ZS), (XK - XL, 0.12, T), M["concrete"], "Structure", part="slab")
 
@@ -356,10 +381,18 @@ plant("Plant_balcon", 3.5, 7.5, s=1.0, room="balcon")
 
 # ============================================================================= DESVÁN (level 2): attic under the gable roof, dormer to the south
 RIDGE_Z, RIDGE_H, EAVE_H = (ZN1 + ZS) / 2, 2.4, 0.35          # heights relative to the attic floor
-box("Slab2", (W / 2, (Y1 + H1 + Y2) / 2, (ZN1 + ZS) / 2), (W + 0.14, Y2 - Y1 - H1, ZS - ZN1 + 0.14), M["concrete"], "Structure", bevel=0, part="slab", level=2)
+AT_Z0, AT_Z1 = 3.6, 6.3     # opening in the attic floor over the second flight
+for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, SW_X0, ZS + 0.07), (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07),
+                                       (SW_X0, ZN1 - 0.07, SW_X1, AT_Z0), (SW_X0, AT_Z1, SW_X1, ZS + 0.07)]):
+    box(f"Slab2_{i}", ((x1 + x2) / 2, (Y1 + H1 + Y2) / 2, (z1 + z2) / 2), (x2 - x1, Y2 - Y1 - H1, z2 - z1), M["concrete"], "Structure", bevel=0, part="slab", level=2)
 box("Cornice", (W / 2, (Y1 + H1 + Y2) / 2, (ZN1 + ZS) / 2), (W + 0.44, Y2 - Y1 - H1 + 0.12, ZS - ZN1 + 0.44), M["band"], "Structure", bevel=0.01, part="slab", level=2)
 set_level(2, Y2)
-floorp("Floor2", (0, ZN1, W, ZS), M["concrete"], 0, 2, "attic")
+floorp("Floor2_a", (0, ZN1, SW_X0, ZS), M["concrete"], 0, 2, "attic")
+floorp("Floor2_b", (SW_X1, ZN1, W, ZS), M["concrete"], 0, 2, "attic")
+floorp("Floor2_c", (SW_X0, ZN1, SW_X1, AT_Z0), M["concrete"], 0, 2, "attic")
+floorp("Floor2_d", (SW_X0, AT_Z1, SW_X1, ZS), M["concrete"], 0, 2, "attic")
+wood_railing("Rail_attic_w", SW_X0, AT_Z1, SW_X0, AT_Z0, 0, h=0.95, material=M["mahogany"], room="attic")
+wood_railing("Rail_attic_s", SW_X0 + 0.09, AT_Z1, SW_X1 - 0.05, AT_Z1, 0, h=0.95, material=M["mahogany"], room="attic", newels=(False, False))
 import bmesh, bpy  # noqa: E402
 from ktlib import coll, uv_box  # noqa: E402
 
@@ -406,8 +439,6 @@ for i in range(8):
     box(f"Crate{i}", (x, 0.25, z), (0.6, 0.5, 0.6), (M["book"], M["oak"])[i % 2], bevel=0.01, **A)
 for i in range(3):
     box(f"CrateTop{i}", (0.8 + i * 0.9, 0.72, ZN1 + 1.4), (0.5, 0.42, 0.5), M["book"], bevel=0.01, **A)
-box("Ladder", (7.2, 1.0, RIDGE_Z + 0.3), (0.45, 2.0, 0.05), M["oak"], bevel=0.004, rot_x=0.25, **A)
-box("Hatch", (5.67, 0.005, SW_Z0 - 0.7), (0.8, 0.01, 0.8), M["oak"], bevel=0.004, **A)
 chair("OldChair", 8.5, 5.0, 0.7, room="attic")
 box("Trunk", (8.4, 0.3, 7.5), (1.0, 0.6, 0.6), M["leather_tan"], bevel=0.02, **A)
 set_level(0, 0.0)
@@ -436,12 +467,13 @@ write_plan(os.path.join(HERE, "..", "site", "casa", "plan.js"), [
                 ("estudio", (XK, ZC, W, 7.14), "#dfc39b", "Estudio"), ("patio", (XK, 0, W, ZC), "#b9b4ab", "Patio"),
                 ("wc", (4.16, 5.71, XK, 7.0), "#c9cdd1", ""), ("porch", (XL, 7.14, W, ZS), "#bdb8b0", "Porch")]),
     dict(walls=walls1, bounds=(-0.3, ZN1 - 0.3, W + 0.3, ZS + 0.3),
-         extra=[(SW_X0, SW_Z0, SW_X0, SW_Z1, "wall"), (SW_X0, SW_Z0, SW_X1, SW_Z0, "wall")],
+         extra=[(SW_X0, SW_Z0, SW_X0, SW_Z1, "wall"), (SW_X0, SW_Z0, SW_X1, SW_Z0, "wall"), (ST_X0, ST2_Z1, ST_X0, ST2_Z0 - 0.9, "wall")],
          rooms=[("dorm1", (0, ZN1, 4.16, 5.51), "#dfc39b", "Dormitorio"), ("dorm2", (0, 5.51, XL, ZS), "#dfc39b", "Dormitorio"),
                 ("bano", (4.16, ZN1, XK, 3.67), "#c9cdd1", "Baño"), ("hall1", (XL, 3.67, XK, 7.14), "#cfc6b8", "Hall"),
                 ("padres", (XK, 3.14, W, ZS), "#d9b98c", "Padres"), ("balcon", (XL, 7.14, XK, ZS), "#bdb8b0", "Balcón")]),
     dict(walls=[], bounds=(-0.3, ZN1 - 0.3, W + 0.3, ZS + 0.3),
          extra=[(0, ZN1, W, ZN1, "wall"), (0, ZS, W, ZS, "wall"), (0, ZN1, 0, ZS, "wall"), (W, ZN1, W, ZS, "wall"),
+                (SW_X0, AT_Z0, SW_X0, AT_Z1, "wall"), (SW_X0, AT_Z1, SW_X1, AT_Z1, "wall"), (SW_X1, AT_Z0, SW_X1, AT_Z1, "wall"),
                 (DX0, DZ, DX1, DZ, "glass"), (DX0, DZ, DX0, RIDGE_Z - 0.6, "wall"), (DX1, DZ, DX1, RIDGE_Z - 0.6, "wall")],
          rooms=[("attic", (0, ZN1, W, ZS), "#d6d2c8", "Desván")]),
 ])

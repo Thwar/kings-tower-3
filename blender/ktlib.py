@@ -548,8 +548,9 @@ def roof_slab(name, x1, x2, z_eave, z_ridge, y_eave, y_ridge, material, thicknes
         (x2 - x1, thickness, length), material, collection, bevel=0, rot_x=ang, **props)
 
 
-def stair_flight(name, x1, x2, z_start, z_end, y0, y1, steps, material, room="hall"):
-    """straight flight from z_start (bottom, height y0) to z_end (top, height y1): treads and risers as boxes"""
+def stair_flight(name, x1, x2, z_start, z_end, y0, y1, steps, material, room="hall", open_risers=False, stringer=None):
+    """straight flight from z_start (bottom, height y0) to z_end (top, height y1): treads and risers as boxes.
+    open_risers=True leaves the risers out; stringer=<material> adds one central sloped beam under the treads"""
     run = (z_end - z_start) / steps
     rise = (y1 - y0) / steps
     for i in range(steps):
@@ -557,8 +558,36 @@ def stair_flight(name, x1, x2, z_start, z_end, y0, y1, steps, material, room="ha
         zc = z_start + run * (i + 0.5)
         box(f"{name}_t{i}", ((x1 + x2) / 2, y - 0.02, zc), (x2 - x1, 0.04, abs(run) + 0.02), material, bevel=0.004,
             part="furniture", room=room)
-        box(f"{name}_r{i}", ((x1 + x2) / 2, y - rise / 2 - 0.02, z_start + run * i), (x2 - x1, rise - 0.02, 0.03), material, bevel=0,
-            part="furniture", room=room)
+        if not open_risers:
+            box(f"{name}_r{i}", ((x1 + x2) / 2, y - rise / 2 - 0.02, z_start + run * i), (x2 - x1, rise - 0.02, 0.03), material, bevel=0,
+                part="furniture", room=room)
+    if stringer:
+        ang = math.atan2(y1 - y0, z_end - z_start)
+        box(f"{name}_stringer", ((x1 + x2) / 2, (y0 + y1) / 2 - 0.16, (z_start + z_end) / 2), (0.16, 0.28, math.hypot(y1 - y0, z_end - z_start) - 0.2),
+            stringer, bevel=0.01, rot_x=-ang, part="furniture", room=room)
+
+
+def wood_railing(name, x1, z1, x2, z2, y0, h=0.95, material=None, room="hall", newels=(True, True)):
+    """balustrade with turned balusters every 13 cm, a moulded handrail and ball-topped newels at the ends"""
+    material = material or M["walnut"]
+    dx, dz = x2 - x1, z2 - z1
+    length, rot = math.hypot(dx, dz), math.atan2(dz, dx)
+    n = max(2, int(length / 0.13))
+    for i in range(1, n):
+        t = i / n
+        x, z = x1 + dx * t, z1 + dz * t
+        cyl(f"{name}_b{i}", (x, y0 + h / 2 - 0.02, z), 0.014, h - 0.06, material, verts=8, part="furniture", room=room)
+        sphere(f"{name}_k{i}", (x, y0 + h * 0.36, z), 0.028, material, sub=1, part="furniture", room=room)
+        sphere(f"{name}_k2{i}", (x, y0 + h * 0.66, z), 0.022, material, sub=1, part="furniture", room=room)
+    box(f"{name}_rail", ((x1 + x2) / 2, y0 + h, (z1 + z2) / 2), (length + 0.1, 0.06, 0.08), material, bevel=0.012, segments=4, rot_z=rot,
+        part="furniture", room=room)
+    for k, (x, z) in enumerate([(x1, z1), (x2, z2)]):
+        if newels[k]:
+            box(f"{name}_n{k}", (x, y0 + h / 2 + 0.03, z), (0.09, h + 0.06, 0.09), material, bevel=0.008, part="furniture", room=room)
+            sphere(f"{name}_nb{k}", (x, y0 + h + 0.13, z), 0.065, material, sub=2, part="furniture", room=room)
+
+
+
 
 
 def railing(name, x1, z1, x2, z2, y0, h=1.0, material=None, glass=False, room="hall", posts=3):

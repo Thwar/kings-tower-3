@@ -35,8 +35,8 @@ export default {
     { key: 'padres',  name: 'Dormitorio padres', room: 'Dormitorio padres', area: '6.2 m deep', title: 'The long bedroom.',
       pos: [15.0, 9.0, 12.0], target: [8.2, Y1 + 0.5, 6.0], walk: [7.3, 5.2, -Math.PI / 2 - 0.5], level: 1 },
     { key: 'balcon',  name: 'Balcón',           room: 'Balcón',           area: 'over the porch', title: 'Over the front door.',
-      pos: [4.8, 8.0, 16.0], target: [4.8, Y1 + 0.5, 8.3], walk: [4.8, 7.6, Math.PI], level: 1 },
+      pos: [4.8, 8.0, 16.0], target: [4.8, Y1 + 0.5, 8.3], walk: [4.0, 7.7, Math.PI], level: 1 },
     { key: 'attic',   name: 'Desván',           room: 'Desván',           area: 'storage under the roof', title: 'Under the tiles.',
-      pos: [-8.0, 12.0, 14.0], target: [4.9, Y2 + 0.5, 5.5], walk: [4.9, 6.5, Math.PI / 2], level: 2 },
+      pos: [-8.0, 12.0, 14.0], target: [4.9, Y2 + 0.5, 5.5], walk: [7.5, 5.0, Math.PI / 2 + 0.3], level: 2 },
   ],
 }
