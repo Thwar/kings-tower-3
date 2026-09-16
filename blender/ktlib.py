@@ -311,8 +311,12 @@ X = dict(ext=(True, True))
 EXT = T / 2 - 0.008   # 8 mm short of the neighbouring wall's far face (past its 6 mm bevel): hidden inside, never coincident
 
 
-def build_walls(walls, frames, height=H, y_base=0.0, level=None):
+def build_walls(walls, frames, height=H, y_base=0.0, level=None, frame_mat=None, cladding=None):
+    """cladding: {side: material} paints the OUTER face of exterior walls (a 2 cm panel 1 mm off the wall, so the
+    interior face keeps the plaster); frame_mat overrides the window-frame material (default dark aluminium)"""
     level = LEVEL[0] if level is None else level
+    frame_mat = frame_mat or M["frame"]
+    OUTWARD = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
     """walls and dark aluminium frames (x1,z1,x2,z2,y0,y1,side) as boxes with the viewer's tags"""
     for i, (x1, z1, x2, z2, side, o) in enumerate(walls):
         y0, y1 = o.get("y0", 0), o.get("y1", height)
@@ -338,6 +342,14 @@ def build_walls(walls, frames, height=H, y_base=0.0, level=None):
             continue
         box(f"Wall_{side}_L{level}_{i:02d}", (cx, (y0 + y1) / 2, cz), (length_ext, y1 - y0, T),
             o.get("mat") or M["plaster"], "Walls", bevel=0.006, rot_z=rot, part="wall", side=side, level=level)
+        if cladding and side in cladding and not o.get("noclad"):
+            nx, nz = -uz, ux                                   # one of the wall's two normals
+            ox, oz = OUTWARD[side]
+            if nx * ox + nz * oz < 0:
+                nx, nz = -nx, -nz                              # pick the one facing out
+            d = T / 2 + 0.011
+            box(f"Clad_{side}_L{level}_{i:02d}", (cx + nx * d, (y0 + y1) / 2, cz + nz * d), (length_ext + 0.02, y1 - y0, 0.02),
+                cladding[side], "Walls", bevel=0, rot_z=rot, part="wall", side=side, level=level)
         if base_floor and not o.get("noskirt"):
             s0, s1 = (0.01 if e0 else 0), (0.01 if e1 else 0)
             scx, scz = cx + ux * (s1 - s0) / 2, cz + uz * (s1 - s0) / 2
@@ -351,7 +363,7 @@ def build_walls(walls, frames, height=H, y_base=0.0, level=None):
         ux, uz = dx / length, dz / length
         for j, (off, y, sz) in enumerate([(0, y0 + 0.025, (length + 0.06, 0.05)), (0, y1 - 0.025, (length + 0.06, 0.05)),
                                           (-length / 2, (y0 + y1) / 2, (0.05, y1 - y0)), (length / 2, (y0 + y1) / 2, (0.05, y1 - y0))]):
-            box(f"Frame_L{level}_{i}_{j}", (cx + ux * off, y + y_base, cz + uz * off), (sz[0], sz[1], T + 0.04), M["frame"], "Walls",
+            box(f"Frame_L{level}_{i}_{j}", (cx + ux * off, y + y_base, cz + uz * off), (sz[0], sz[1], T + 0.06), frame_mat, "Walls",
                 bevel=0.004, rot_z=rot, part="frame", side=fside, level=level)
 
 
