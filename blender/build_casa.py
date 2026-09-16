@@ -212,12 +212,9 @@ L = dict(room="living", level=0, **F)
 box("Rug_living", (1.55, 0.008, 5.6), (2.5, 0.012, 2.6), M["rug"], bevel=0.004, **L)
 sofa("Sofa3", 1.55, 6.9, math.pi, w=2.2)
 sofa("Sofa2", 0.65, 5.2, -math.pi / 2, w=1.6)
-lounge_chair("Armchair", 2.5, 4.4, math.pi + 0.6)
 cyl("RoundTable", (1.55, 0.42, 5.55), 0.45, 0.04, M["walnut"], bevel=0.005, **L)
 cyl("RoundTableLeg", (1.55, 0.2, 5.55), 0.05, 0.4, M["frame"], verts=12, **L)
-box("TVunit", (2.9, 0.25, 5.4), (0.4, 0.5, 1.4), M["walnut"], bevel=0.008, **L)
-box("TV", (2.92, 1.2, 5.4), (0.035, 0.7, 1.2), M["screen"], bevel=0.004, **L)
-plant("Plant_living", 0.4, 7.3, s=1.3)
+plant("Plant_living", 0.5, 6.45, s=1.3)   # clear of the chamfered corner
 wall_art("Art_living", 0.09, 1.55, 2.9, 0.8, 1.0, math.pi / 2, M["art2"], room="living")
 # ---------- cocina: L run along the north and west walls, window over the sink
 K = dict(room="kitchen", level=0, **F)
