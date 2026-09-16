@@ -52,7 +52,7 @@ XL = 3.16                     # comedor-living east wall centreline
 XK = 6.51                     # cocina / hall east wall centreline
 ZC = 2.74                     # cocina south wall (hall north wall)
 WC_X0, WC_X1, WC_Z0, WC_Z1, WC_DROP = 4.16, XK, 5.71, 7.0, 0.45
-ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 3.95, 6.7, 14        # the main flight: x band, bottom z (clear of the estudio door), top z, risers
+ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 4.2, 6.95, 14        # the main flight: x band, bottom z (clear of the estudio door), top z, risers
 
 
 def floorp(name, rect, material, y, level, room):
@@ -92,8 +92,8 @@ walls0 = [
     # cocina | hall: a tiled bar (low wall x 3.6–5.6, open above it) and the walkway into the kitchen x 5.6–6.4
     (XL, ZC, 3.6, ZC, "I", dict(ext=(True, False))), (6.4, ZC, XK, ZC, "I", dict(ext=(False, True))),
     (3.6, ZC, 5.6, ZC, "I", dict(y0=0, y1=1.05, mat=M["bar_tile"])), (3.6, ZC, 6.4, ZC, "I", dict(y0=2.3, y1=H0, noskirt=True)),
-    (XK, ZC, XK, 3.0, "I", dict(ext=(True, False))), (XK, 3.8, XK, 7.14, "I", dict(ext=(False, True))),  # hall | estudio, door z 3.0–3.8
-    (XK, 3.0, XK, 3.8, "I", dict(y0=2.1, y1=H0, noskirt=True)),
+    (XK, ZC, XK, 2.88, "I", dict(ext=(True, False))), (XK, 3.68, XK, 7.14, "I", dict(ext=(False, True))),  # hall | estudio, door z 2.88–3.68
+    (XK, 2.88, XK, 3.68, "I", dict(y0=2.1, y1=H0, noskirt=True)),
     (4.16, 5.71, XK, 5.71, "I", dict(**X)),                                                              # w.c. north wall (under the stair)
     (4.16, 5.71, 4.16, 5.9, "I", dict(ext=(True, False))), (4.16, 6.6, 4.16, 7.0, "I", dict(ext=(False, True))),   # w.c. west wall, door z 5.9–6.6
     (4.16, 5.9, 4.16, 6.6, "I", dict(y0=2.1, y1=H0, noskirt=True)),
@@ -175,7 +175,7 @@ def panel_door(name, x, z, rot, w=0.85, room="hall", glass=False):
 panel_door("Door_entry", 3.7, 7.08, 0, w=0.9)
 panel_door("Door_patio", XK + 0.05, 1.6, math.pi / 2, w=0.8, room="kitchen", glass=True)
 panel_door("Door_wc", 4.1, 6.95, math.pi / 2, w=0.7, room="wc", glass=True)
-panel_door("Door_estudio", XK + 0.05, 3.4, math.pi / 2, w=0.8, room="estudio")
+panel_door("Door_estudio", XK + 0.05, 3.28, math.pi / 2, w=0.8, room="estudio")
 
 # straight stair along the east side of the hall: starts on the floor in front of the estudio door (z 3.3) and rises
 # southward to the upper hall (z 6.6); the w.c. sits under its high end. Handrail on the open (west) side.
@@ -305,7 +305,7 @@ frames1 = [
 ]
 
 # upper floor slab (in pieces around the stair well x 4.9–6.44, z 3.74–5.64), then everything else relative to Y1
-SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 4.85, 6.75
+SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 5.1, 7.0
 for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, SW_X0, ZS + 0.07), (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07),
                                        (SW_X0, ZN1 - 0.07, SW_X1, SW_Z0), (SW_X0, SW_Z1, SW_X1, ZS + 0.07)]):
     box(f"Slab1_{i}", ((x1 + x2) / 2, (H0 + Y1) / 2, (z1 + z2) / 2), (x2 - x1, Y1 - H0, z2 - z1), M["concrete"], "Structure", bevel=0, part="slab", level=1)
