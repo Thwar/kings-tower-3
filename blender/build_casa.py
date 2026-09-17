@@ -76,11 +76,12 @@ walls0 = [
     (7.5, 7.14, 9.0, 7.14, "S", dict(y0=0, y1=1.0)), (7.5, 7.14, 9.0, 7.14, "S", dict(y0=2.2, y1=H0, noskirt=True)), (7.5, 7.14, 9.0, 7.14, "S", dict(y0=1.0, y1=2.2, glass=True)),
     (4.16, 7.0, XK, 7.0, "S", dict(ext=(True, True))),                              # w.c. south wall
     (XL, 7.0, 4.16, 7.0, "S", dict(y0=2.1, y1=H0, noskirt=True)),                   # front door head (door x 3.23–4.16 → the passage)
-    (1.0, 7.85, 1.4, 7.85, "S", dict(ext=(False, False))), (2.9, 7.85, XL, 7.85, "S", dict(ext=(False, True))),
-    (1.4, 7.85, 2.9, 7.85, "S", dict(y0=0, y1=0.9)), (1.4, 7.85, 2.9, 7.85, "S", dict(y0=2.2, y1=H0, noskirt=True)), (1.4, 7.85, 2.9, 7.85, "S", dict(y0=0.9, y1=2.2, glass=True)),
-    (0, 6.85, 1.0, 7.85, "S", dict(ext=(False, False))),                            # bay chamfer
+    (0, 7.85, 0.45, 7.85, "S", dict(ext=(True, False))), (2.75, 7.85, XL, 7.85, "S", dict(ext=(False, True))),
+    # bay window: three lights (angled left, centre, angled right) projecting 0.45 m beyond the south wall
+    *[(x1, z1, x2, z2, "S", dict(**o)) for (x1, z1, x2, z2) in [(0.45, 7.85, 0.9, 8.3), (0.9, 8.3, 2.3, 8.3), (2.3, 8.3, 2.75, 7.85)]
+      for o in (dict(y0=0, y1=0.9), dict(y0=2.2, y1=H0, noskirt=True), dict(y0=0.9, y1=2.2, glass=True))],
     # west: comedor + living
-    (0, 0, 0, 4.5, "W", dict(ext=(True, False))), (0, 6.5, 0, 6.85, "W", dict(ext=(False, False))),
+    (0, 0, 0, 4.5, "W", dict(ext=(True, False))), (0, 6.5, 0, 7.85, "W", dict(ext=(False, True))),
     (0, 4.5, 0, 6.5, "W", dict(y0=0, y1=0.9)), (0, 4.5, 0, 6.5, "W", dict(y0=2.2, y1=H0, noskirt=True)), (0, 4.5, 0, 6.5, "W", dict(y0=0.9, y1=2.2, glass=True)),
     # patio / house boundary
     (XK, 0, XK, 1.2, "E", dict(ext=(True, False))), (XK, 2.0, XK, ZC, "E", dict(ext=(False, True))),      # cocina east wall, door to the patio z 1.2–2.0
@@ -101,12 +102,15 @@ walls0 = [
 frames0 = [
     (0.8, 0, 2.4, 0, 1.0, 2.2, "N"), (4.0, 0, 5.8, 0, 1.0, 2.2, "N"),
     (W, 4.0, W, 6.0, 1.0, 2.2, "E"), (7.5, 7.14, 9.0, 7.14, 1.0, 2.2, "S"),
-    (1.4, 7.85, 2.9, 7.85, 0.9, 2.2, "S"), (0, 4.5, 0, 6.5, 0.9, 2.2, "W"),
+    (0.45, 7.85, 0.9, 8.3, 0.9, 2.2, "S"), (0.9, 8.3, 2.3, 8.3, 0.9, 2.2, "S"), (2.3, 8.3, 2.75, 7.85, 0.9, 2.2, "S"), (0, 4.5, 0, 6.5, 0.9, 2.2, "W"),
 ]
 set_level(0, 0.0)
 build_walls(walls0, frames0, height=H0, frame_mat=M["wood_frame"], cladding=CLAD0)
 
 floorp("Floor_comedor", (0, 0, XL, 7.85), M["wood"], 0, 0, "living")
+prism("Floor_bay", [(0.45, 7.85), (2.75, 7.85), (2.3, 8.3), (0.9, 8.3)], 0.0, 0.002, M["wood"], "Floors", part="floor", room="living")
+for k, (x, z) in enumerate([(0.45, 7.85), (0.9, 8.3), (2.3, 8.3), (2.75, 7.85)]):
+    box(f"BayPost{k}", (x, H0 / 2, z), (T + 0.03, H0, T + 0.03), M["plaster"], "Walls", bevel=0.004, part="wall", side="S")
 floorp("Floor_cocina", (XL, 0, XK, ZC), M["tile"], 0, 0, "kitchen")
 floorp("Floor_hall_a", (XL, ZC, XK, WC_Z0), M["tile"], 0, 0, "hall")
 floorp("Floor_hall_b", (XL, WC_Z0, WC_X0, 7.0), M["tile"], 0, 0, "hall")
@@ -132,7 +136,7 @@ box("BarFront", (4.6, 0.52, ZC + T / 2 + 0.011), (2.0, 1.02, 0.02), M["bar_tile"
 box("BarBeam", (5.0, 2.3 - 0.075, ZC), (2.9, 0.15, T + 0.06), M["band"], "Walls", bevel=0.004, part="wall", side="I", level=0)
 # ground ceilings: flat over hall/estudio/w.c., the lean-to slope over comedor + cocina (2.7 at the north wall → 3.1 at z=2)
 box("Ceiling0_main", ((XL + W) / 2, H0 + 0.05, (ZC + 7.14) / 2), (W - XL + T, 0.1, 7.14 - ZC + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=0)
-box("Ceiling0_living", (XL / 2, H0 + 0.05, (ZN1 + 7.85) / 2), (XL + T, 0.1, 7.85 - ZN1 + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=0)
+box("Ceiling0_living", (XL / 2, H0 + 0.05, (ZN1 + 8.3) / 2), (XL + T, 0.1, 8.3 - ZN1 + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=0)
 roof_slab("Ceiling0_leanto", -0.3, XK + 0.1, -0.3, ZN1, H0 - 0.1, 3.1, M["ceiling"], thickness=0.08, part="ceiling", level=0)
 roof_slab("Roof_leanto", -0.35, XK + 0.15, -0.4, ZN1 + 0.05, H0 + 0.05, 3.35, M["roof"], thickness=0.1, part="ceiling", level=0)
 downlights([(1.5, 1.6), (1.5, 5.5), (4.8, 1.3), (4.8, 4.2), (8.2, 4.5), (5.3, 6.4)], height=H0)
@@ -173,6 +177,8 @@ def panel_door(name, x, z, rot, w=0.85, room="hall", glass=False):
 
 
 panel_door("Door_entry", 3.7, 7.08, 0, w=0.9)
+sphere("Door_entry_oval", (3.7, 1.35, 7.08), 1.0, M["glass"], "Glass", scale=(0.17, 0.42, 0.07), sub=3, part="glass", side="I", room="hall")
+sphere("Door_entry_ovalrim", (3.7, 1.35, 7.08), 1.0, M["mahogany"], "Furniture", scale=(0.19, 0.44, 0.05), sub=3, part="furniture", room="hall")
 panel_door("Door_patio", XK + 0.05, 1.6, math.pi / 2, w=0.8, room="kitchen", glass=True)
 panel_door("Door_wc", 4.1, 6.95, math.pi / 2, w=0.7, room="wc", glass=True)
 panel_door("Door_estudio", XK + 0.05, 3.28, math.pi / 2, w=0.8, room="estudio")
@@ -209,26 +215,24 @@ wall_art("Art_comedor", 0.09, 1.7, 1.5, 1.2, 0.7, math.pi / 2, M["art2"], room="
 for i, z in enumerate([1.1, 1.9]):
     cyl(f"PendantCord_{i}", (1.55, 2.4, z), 0.003, 0.5, M["frame"], verts=6, **D)
     cyl(f"Pendant_{i}", (1.55, 2.05, z), 0.09, 0.22, M["pendant"], r2=0.11, part="light", room="living", level=0)
-# ---------- living: bay-window lounge — media wall on the chamfered corner, sofa on the diagonal facing it,
-#            armchairs by the west window and in the bay, round table on a big rug; the route hall → comedor stays clear
+# ---------- living: media wall on the solid stretch of west wall, sofa on the diagonal facing it, an armchair in the
+#            bay window and one under the west window, round table on a big rug; the route hall → comedor stays clear
 L = dict(room="living", level=0, **F)
-box("Rug_living", (1.55, 0.008, 5.6), (2.8, 0.012, 2.8), M["rug"], bevel=0.004, **L)
-sofa("Sofa3", 1.95, 4.95, math.pi / 4, w=2.2)                                   # facing south-west, toward the corner
-lounge_chair("Armchair1", 0.75, 4.9, -math.pi / 2 - 0.35)                       # under the west window, turned to the table
-lounge_chair("Armchair2", 2.55, 7.1, math.pi * 0.8)                              # in the bay, turned back to the sofa
-cyl("RoundTable", (1.35, 0.42, 6.05), 0.45, 0.04, M["walnut"], bevel=0.005, **L)
-cyl("RoundTableLeg", (1.35, 0.2, 6.05), 0.05, 0.4, M["frame"], verts=12, **L)
-box("Tray", (1.35, 0.455, 6.05), (0.3, 0.015, 0.2), M["frame"], bevel=0.004, **L)
-box("Book1", (1.2, 0.46, 5.9), (0.22, 0.025, 0.28), M["book"], bevel=0.004, **L)
-_ch = math.pi / 4   # the chamfer runs from (0, 6.85) to (1, 7.85)
-box("MediaUnit", (0.72, 0.24, 7.13), (1.4, 0.48, 0.42), M["walnut"], bevel=0.008, rot_z=_ch, **L)
-box("MediaGap", (0.87, 0.24, 6.98), (1.36, 0.006, 0.004), M["frame"], bevel=0, rot_z=_ch, **L)
-box("TV", (0.57, 1.25, 7.28), (1.2, 0.68, 0.035), M["screen"], bevel=0.004, rot_z=_ch, **L)
-box("TVpanel", (0.585, 1.25, 7.265), (1.14, 0.62, 0.004), M["screen"], bevel=0, rot_z=_ch, **L)
-box("Speaker", (1.35, 0.14, 7.55), (0.16, 0.28, 0.2), M["black"], bevel=0.008, rot_z=_ch, **L)
-floor_lamp("FloorLamp", 2.75, 7.45)
-wall_art("Art_living", 0.09, 1.55, 3.6, 1.1, 0.9, math.pi / 2, M["art2"], room="living")
-plant("Plant_living", 0.45, 3.5, s=1.3)
+box("Rug_living", (1.45, 0.008, 5.3), (2.6, 0.012, 3.0), M["rug"], bevel=0.004, **L)
+sofa("Sofa3", 1.95, 5.55, math.pi * 0.75, w=2.2)                                 # facing north-west, toward the TV
+lounge_chair("Armchair1", 1.6, 7.55, math.pi)                                    # in the bay, facing the room
+lounge_chair("Armchair2", 0.7, 6.2, -math.pi / 2 + 0.3)                          # under the west window
+cyl("RoundTable", (1.15, 0.42, 5.0), 0.45, 0.04, M["walnut"], bevel=0.005, **L)
+cyl("RoundTableLeg", (1.15, 0.2, 5.0), 0.05, 0.4, M["frame"], verts=12, **L)
+box("Tray", (1.15, 0.455, 5.0), (0.3, 0.015, 0.2), M["frame"], bevel=0.004, **L)
+box("Book1", (1.0, 0.46, 4.85), (0.22, 0.025, 0.28), M["book"], bevel=0.004, **L)
+box("MediaUnit", (0.3, 0.24, 3.62), (0.42, 0.48, 1.5), M["walnut"], bevel=0.008, **L)
+box("MediaGap", (0.512, 0.24, 3.62), (0.004, 0.006, 1.46), M["frame"], bevel=0, **L)
+box("TV", (0.11, 1.3, 3.62), (0.035, 0.68, 1.2), M["screen"], bevel=0.004, **L)
+box("TVpanel", (0.13, 1.3, 3.62), (0.004, 0.62, 1.14), M["screen"], bevel=0, **L)
+box("Speaker", (0.3, 0.14, 2.95), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
+floor_lamp("FloorLamp", 2.8, 7.3)
+plant("Plant_living", 0.5, 2.95, s=1.2)   # beside the media unit, out of the bay
 box("Curtain", (0.11, 1.35, 6.75), (0.04, 2.35, 0.4), M["linen"], bevel=0.015, **L)
 box("CurtainRail", (0.1, 2.5, 5.5), (0.02, 0.02, 2.3), M["frame"], bevel=0, **L)
 # ---------- cocina: L run along the north and west walls, window over the sink
@@ -502,7 +506,7 @@ RENDER_VIEWS = [   # key, camera, target, fov, hidden sides, highest floor shown
 # the minimap / walk-collision plans come straight from the wall lists above
 write_plan(os.path.join(HERE, "..", "site", "casa", "plan.js"), [
     dict(walls=walls0, bounds=(-0.3, -0.3, W + 0.3, ZS + 1.2),
-         extra=[(1.0, 7.85, 1.4, 7.85, "wall"), (ST_X0, ST_Z0 + 0.9, ST_X0, ST_Z1, "wall"), (ST_X0, ST_Z1, ST_X1, ST_Z1, "wall")],
+         extra=[(ST_X0, ST_Z0 + 0.9, ST_X0, ST_Z1, "wall"), (ST_X0, ST_Z1, ST_X1, ST_Z1, "wall")],
          rooms=[("living", (0, 0, XL, 3.3), "#d9b98c", "Comedor"), ("living2", (0, 3.3, XL, 7.85), "#d9b98c", "Living"),
                 ("kitchen", (XL, 0, XK, ZC), "#d2b58c", "Cocina"), ("hall", (XL, ZC, XK, 7.0), "#cfc6b8", "Hall"),
                 ("estudio", (XK, ZC, W, 7.14), "#dfc39b", "Estudio"), ("patio", (XK, 0, W, ZC), "#b9b4ab", "Patio"),
