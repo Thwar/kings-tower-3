@@ -539,6 +539,28 @@ def prism(name, pts, y0, y1, material, collection="Walls", **props):
     return _finish(o, name, collection, material, props, 0)
 
 
+def side_wall(name, x, pts, material, thickness=T, collection="Walls", **props):
+    """a vertical wall standing at constant x, its outline given as (z, y) points — stair spandrels, gable ends"""
+    import bmesh
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    y0 = Y_BASE[0]
+    a = [bm.verts.new((x - thickness / 2, -z, y0 + y)) for z, y in pts]
+    b = [bm.verts.new((x + thickness / 2, -z, y0 + y)) for z, y in pts]
+    bm.faces.new(a)
+    bm.faces.new(b)
+    n = len(pts)
+    for i in range(n):
+        bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    scene.collection.objects.link(o)
+    bpy.context.view_layer.objects.active = o
+    return _finish(o, name, collection, material, props, 0)
+
+
 def roof_slab(name, x1, x2, z_eave, z_ridge, y_eave, y_ridge, material, thickness=0.12, collection="Ceiling", **props):
     """one pitched roof plane between an eave line and a ridge line (both along x), as a tilted box"""
     dz, dy = z_ridge - z_eave, y_ridge - y_eave

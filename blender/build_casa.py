@@ -24,7 +24,7 @@ import bmesh  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ktlib import (T, M, X, STYLE, mat, tmat, box, soft, cyl, sphere, floor_plane, build_walls, downlights,  # noqa: E402
                    plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export,
-                   prism, roof_slab, stair_flight, railing, column, rnd, set_level, write_plan, wood_railing)
+                   prism, roof_slab, side_wall, stair_flight, railing, column, rnd, set_level, write_plan, wood_railing)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "site", "casa", "apartment.glb" if STYLE == "bachelor" else f"apartment-{STYLE}.glb")
@@ -98,7 +98,7 @@ walls0 = [
     (XK, ZC, 6.6, ZC, "N", dict(ext=(True, False))), (7.4, ZC, W, ZC, "N", dict(ext=(False, True))),      # estudio north wall, door to the patio x 6.6–7.4
     (6.6, ZC, 7.4, ZC, "N", dict(y0=2.1, y1=H0, noskirt=True)),
     # interior
-    (XL, 0, XL, ZC, "I", dict(ext=(True, True))), (XL, 6.9, XL, 7.85, "I", dict(ext=(False, True))),   # comedor | cocina; the living is open to the hall, short return by the front door
+    (XL, 0, XL, ZC, "I", dict(ext=(True, True))), (XL, 6.3, XL, 7.85, "I", dict(ext=(False, True))),   # comedor | cocina; the living opens to the hall between them, with a pier at its near end
     # cocina | hall: a tiled bar (low wall x 3.6–5.6, open above it) and the walkway into the kitchen x 5.6–6.4
     (XL, ZC, 3.6, ZC, "I", dict(ext=(True, False))), (6.4, ZC, XK, ZC, "I", dict(ext=(False, True))),
     (3.6, ZC, 5.6, ZC, "I", dict(y0=0, y1=1.05, mat=M["bar_tile"])), (3.6, ZC, 6.4, ZC, "I", dict(y0=2.3, y1=H0, noskirt=True)),
@@ -140,7 +140,7 @@ for nm, (cx, cz, sx, sz) in {"WcWallS": ((WC_X0 + WC_X1) / 2, WC_Z1, WC_X1 - WC_
                              "WcWallE": (WC_X1, (WC_Z0 + WC_Z1) / 2, T, WC_Z1 - WC_Z0), "WcWallN_e": ((WL_X1 + WC_X1) / 2, WC_Z0, WC_X1 - WL_X1, T)}.items():
     box(nm, (cx, _wy, cz), (sx, _wh, sz), M["plaster"], "Walls", bevel=0, part="wall", side="I", level=0)
 box("WellWallW", (WL_X0, -WC_DROP / 2, (WL_Z0 + WL_Z1) / 2), (T, WC_DROP, WL_Z1 - WL_Z0 + T), M["plaster"], "Walls", bevel=0, part="wall", side="I", level=0)
-box("WellWallE", (WL_X1, -WC_DROP / 2, (WL_Z0 + WL_Z1) / 2), (T, WC_DROP, WL_Z1 - WL_Z0 + T), M["plaster"], "Walls", bevel=0, part="wall", side="I", level=0)
+box("WellWallE", (WL_X1, -WC_DROP / 2, (WL_Z0 + WL_Z1) / 2), (T, WC_DROP, WL_Z1 - WL_Z0), M["plaster"], "Walls", bevel=0, part="wall", side="I", level=0)
 # four tiled steps down the well, balustrades on both sides with newels at the top
 _n = 4
 _r, _t = WC_DROP / _n, (WL_Z1 - WL_Z0 - 0.2) / _n
@@ -166,6 +166,7 @@ for nm, (cx, cz, sx, sz) in {"CorniceN": ((XL + XK) / 2, ZC + 0.08, XK - XL, 0.1
     box(nm, (cx, H0 - 0.06, cz), (sx, 0.12, sz), M["band"], "Ceiling", bevel=0.01, segments=4, part="ceiling", level=0)
 box("BeamHall", ((XL + XK) / 2, H0 - 0.15, 4.4), (XK - XL, 0.3, 0.25), M["band"], "Ceiling", bevel=0.01, part="ceiling", level=0)
 box("BeamStair", (ST_X0 - 0.12, H0 - 0.15, (ZC + 7.0) / 2), (0.25, 0.3, 7.0 - ZC), M["band"], "Ceiling", bevel=0.01, part="ceiling", level=0)
+box("BeamLiving", (XL, H0 - 0.15, (ZC + 6.3) / 2), (0.3, 0.3, 6.3 - ZC), M["band"], "Ceiling", bevel=0.01, part="ceiling", level=0)
 
 # porch: four columns carrying the upper floor, two steps up to the door
 for i, x in enumerate([0.25, 3.35, 6.35, 9.55]):
@@ -207,7 +208,8 @@ panel_door("Door_estudio", XK + 0.05, 3.28, math.pi / 2, w=0.8, room="estudio")
 # south wall, then four steps turning west over the w.c. door into the upper hall. Tiled treads, mahogany balustrade.
 stair_flight("Stair", ST_X0, ST_X1, ST_Z0, ST_Z1, 0.0, ST_Y1, ST_N, M["stair"])
 box("Landing", ((ST_X0 + ST_X1) / 2, ST_Y1 - 0.14, (ST_Z1 + 7.0) / 2), (ST_X1 - ST_X0, 0.28, 7.0 - ST_Z1), M["stair"], "Furniture", bevel=0.004, part="furniture", room="hall")
-box("LandingWall", (ST_X0, (ST_Y1 - 0.28) / 2, (ST_Z1 + 7.0) / 2), (T, ST_Y1 - 0.28, 7.0 - ST_Z1), M["plaster"], "Walls", bevel=0.004, part="wall", side="I")   # the wall beside the w.c. door
+side_wall("StairSpandrel", ST_X0, [(ST_Z0 - 0.02, 0), (ST_Z1, 0), (ST_Z1, ST_Y1 - 0.02)], M["plaster"], part="wall", side="I", room="hall")   # closed string: solid from the hall floor up to the treads
+box("LandingWall", (ST_X0, (ST_Y1 - 0.28) / 2, (ST_Z1 + 7.0) / 2), (T, ST_Y1 - 0.28, 7.0 - ST_Z1 - T / 2), M["plaster"], "Walls", bevel=0.004, part="wall", side="I")   # the wall beside the w.c. door
 _run2, _rise2 = (ST2X1 - ST2X0) / ST2_N, (Y1 - ST_Y1) / ST2_N
 for i in range(ST2_N):
     xc = ST2X0 + _run2 * (i + 0.5); y = ST_Y1 + _rise2 * (i + 1)
