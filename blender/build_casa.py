@@ -18,6 +18,9 @@ import math
 import os
 import sys
 
+import bpy  # noqa: E402
+import bmesh  # noqa: E402
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ktlib import (T, M, X, STYLE, mat, tmat, box, soft, cyl, sphere, floor_plane, build_walls, downlights,  # noqa: E402
                    plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export,
@@ -55,7 +58,8 @@ ZC = 2.74                     # cocina south wall (hall north wall)
 # front door at the bottom of a short well in the hall floor. Nothing is walled off under the stair.
 WC_X0, WC_X1, WC_Z0, WC_Z1, WC_DROP = 4.16, XK, 7.0, 8.4, 0.9
 WL_X0, WL_X1, WL_Z0, WL_Z1 = 4.1, 4.9, 6.15, 7.0                    # the well: x band, top step z, door z
-ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N = 4.9, 6.44, 4.2, 6.95, 14        # the main flight: x band, bottom z (clear of the estudio door), top z, risers
+ST_X0, ST_X1, ST_Z0, ST_Z1, ST_N, ST_Y1 = 4.9, 6.44, 4.2, 6.15, 10, 2.05   # main flight up to a landing at the south wall
+ST2X0, ST2X1, ST2_N = 4.9, 3.7, 4                                           # then four steps turning west over the w.c. door, to the upper hall        # the main flight: x band, bottom z (clear of the estudio door), top z, risers
 
 
 def floorp(name, rect, material, y, level, room):
@@ -199,21 +203,42 @@ panel_door("Door_patio", XK + 0.05, 1.6, math.pi / 2, w=0.8, room="kitchen", gla
 panel_door("Door_wc", (WL_X0 + WL_X1) / 2, WL_Z1, 0, w=0.75, room="wc", glass=True, y0=-WC_DROP)
 panel_door("Door_estudio", XK + 0.05, 3.28, math.pi / 2, w=0.8, room="estudio")
 
-# straight stair along the east side of the hall: starts on the floor in front of the estudio door (z 3.3) and rises
-# southward to the upper hall (z 6.6); the w.c. sits under its high end. Handrail on the open (west) side.
-stair_flight("Stair", ST_X0, ST_X1, ST_Z0, ST_Z1, 0.0, Y1, ST_N, M["stair"])
-_run, _rise = (ST_Z1 - ST_Z0) / ST_N, Y1 / ST_N
-for i in range(ST_N):   # turned balusters, one per tread
+# L-shaped stair: main flight along the east side of the hall from in front of the estudio door up to a landing against the
+# south wall, then four steps turning west over the w.c. door into the upper hall. Tiled treads, mahogany balustrade.
+stair_flight("Stair", ST_X0, ST_X1, ST_Z0, ST_Z1, 0.0, ST_Y1, ST_N, M["stair"])
+box("Landing", ((ST_X0 + ST_X1) / 2, ST_Y1 - 0.14, (ST_Z1 + 7.0) / 2), (ST_X1 - ST_X0, 0.28, 7.0 - ST_Z1), M["stair"], "Furniture", bevel=0.004, part="furniture", room="hall")
+box("LandingWall", (ST_X0, (ST_Y1 - 0.28) / 2, (ST_Z1 + 7.0) / 2), (T, ST_Y1 - 0.28, 7.0 - ST_Z1), M["plaster"], "Walls", bevel=0.004, part="wall", side="I")   # the wall beside the w.c. door
+_run2, _rise2 = (ST2X1 - ST2X0) / ST2_N, (Y1 - ST_Y1) / ST2_N
+for i in range(ST2_N):
+    xc = ST2X0 + _run2 * (i + 0.5); y = ST_Y1 + _rise2 * (i + 1)
+    box(f"Turn_t{i}", (xc, y - 0.02, (ST_Z1 + 7.0) / 2), (abs(_run2) + 0.02, 0.04, 7.0 - ST_Z1), M["stair"], bevel=0.004, part="furniture", room="hall")
+    box(f"Turn_r{i}", (ST2X0 + _run2 * i, y - _rise2 / 2 - 0.02, (ST_Z1 + 7.0) / 2), (0.03, _rise2 - 0.02, 7.0 - ST_Z1), M["stair"], bevel=0, part="furniture", room="hall")
+# soffit under the turn (a sloped panel from the landing edge up to the upper hall floor)
+_ang2 = math.atan2(Y1 - ST_Y1, ST2X0 - ST2X1)
+box("TurnSoffit", ((ST2X0 + ST2X1) / 2, (ST_Y1 + Y1) / 2 - 0.3, (ST_Z1 + 7.0) / 2), (math.hypot(Y1 - ST_Y1, ST2X0 - ST2X1) + 0.1, 0.05, 7.0 - ST_Z1), M["plaster"], "Walls",
+    bevel=0, rot_z=0, part="wall", side="I")
+bpy_obj = bpy.data.objects["TurnSoffit"]; bpy_obj.rotation_euler = (0, _ang2, 0); bpy.context.view_layer.update()
+_run, _rise = (ST_Z1 - ST_Z0) / ST_N, ST_Y1 / ST_N
+for i in range(ST_N):   # turned balusters, one per tread, on the open west side
     z = ST_Z0 + _run * (i + 0.5); y = _rise * (i + 1)
     cyl(f"Baluster{i}", (ST_X0 + 0.05, y + 0.42, z), 0.018, 0.84, M["mahogany"], verts=10, part="furniture", room="hall")
     sphere(f"BalusterKnob{i}", (ST_X0 + 0.05, y + 0.3, z), 0.032, M["mahogany"], sub=1, part="furniture", room="hall")
     sphere(f"BalusterKnob2{i}", (ST_X0 + 0.05, y + 0.58, z), 0.026, M["mahogany"], sub=1, part="furniture", room="hall")
-_ang = math.atan2(Y1, ST_Z1 - ST_Z0)
-box("StairRail", (ST_X0 + 0.05, Y1 / 2 + 0.9, (ST_Z0 + ST_Z1) / 2), (0.07, 0.06, math.hypot(Y1, ST_Z1 - ST_Z0) + 0.2), M["mahogany"], bevel=0.01, segments=4,
+_ang = math.atan2(ST_Y1, ST_Z1 - ST_Z0)
+box("StairRail", (ST_X0 + 0.05, ST_Y1 / 2 + 0.9, (ST_Z0 + ST_Z1) / 2), (0.07, 0.06, math.hypot(ST_Y1, ST_Z1 - ST_Z0) + 0.2), M["mahogany"], bevel=0.01, segments=4,
     rot_x=-_ang, part="furniture", room="hall")
 cyl("Newel", (ST_X0 + 0.05, 0.5, ST_Z0 - 0.12), 0.05, 1.0, M["mahogany"], verts=12, part="furniture", room="hall")
 sphere("NewelBall", (ST_X0 + 0.05, 1.07, ST_Z0 - 0.12), 0.075, M["mahogany"], sub=2, part="furniture", room="hall")
-box("StairWall", (ST_X1 + 0.02, Y1 / 4, (ST_Z0 + ST_Z1) / 2), (0.04, Y1 / 2, ST_Z1 - ST_Z0), M["plaster"], bevel=0, part="furniture", room="hall")   # closes the triangle under the flight against the estudio wall
+box("NewelLanding", (ST_X0 + 0.05, ST_Y1 + 0.5, ST_Z1 + 0.05), (0.09, 1.0, 0.09), M["mahogany"], bevel=0.008, part="furniture", room="hall")
+sphere("NewelLandingBall", (ST_X0 + 0.05, ST_Y1 + 1.07, ST_Z1 + 0.05), 0.075, M["mahogany"], sub=2, part="furniture", room="hall")
+for i in range(ST2_N):   # balusters along the north edge of the turning steps
+    x = ST2X0 + _run2 * (i + 0.5); y = ST_Y1 + _rise2 * (i + 1)
+    cyl(f"TurnBaluster{i}", (x, y + 0.42, ST_Z1 + 0.05), 0.018, 0.84, M["mahogany"], verts=10, part="furniture", room="hall")
+    sphere(f"TurnKnob{i}", (x, y + 0.3, ST_Z1 + 0.05), 0.032, M["mahogany"], sub=1, part="furniture", room="hall")
+box("TurnRail", ((ST2X0 + ST2X1) / 2, (ST_Y1 + Y1) / 2 + 0.9, ST_Z1 + 0.05), (math.hypot(Y1 - ST_Y1, ST2X0 - ST2X1) + 0.2, 0.06, 0.07), M["mahogany"], bevel=0.01, segments=4,
+    part="furniture", room="hall")
+bpy.data.objects["TurnRail"].rotation_euler = (0, _ang2, 0); bpy.context.view_layer.update()
+box("StairWall", (ST_X1 + 0.02, ST_Y1 / 4, (ST_Z0 + ST_Z1) / 2), (0.04, ST_Y1 / 2, ST_Z1 - ST_Z0), M["plaster"], bevel=0, part="furniture", room="hall")
 
 F = dict(part="furniture")
 # ---------- comedor: six-seat table under two pendants, sideboard on the west wall, head chair toward the window
@@ -337,8 +362,9 @@ frames1 = [
 
 # upper floor slab (in pieces around the stair well x 4.9–6.44, z 3.74–5.64), then everything else relative to Y1
 SW_X0, SW_X1, SW_Z0, SW_Z1 = 4.9, 6.44, 5.1, 7.0
-for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, SW_X0, ZS + 0.07), (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07),
-                                       (SW_X0, ZN1 - 0.07, SW_X1, SW_Z0), (SW_X0, SW_Z1, SW_X1, ZS + 0.07)]):
+TW_X0 = 3.7   # the turn's well, x 3.7–4.9 over z 6.15–7.0
+for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, TW_X0, ZS + 0.07), (TW_X0, ZN1 - 0.07, SW_X0, ST_Z1), (TW_X0, 7.0, SW_X0, ZS + 0.07),
+                                       (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07), (SW_X0, ZN1 - 0.07, SW_X1, SW_Z0), (SW_X0, SW_Z1, SW_X1, ZS + 0.07)]):
     box(f"Slab1_{i}", ((x1 + x2) / 2, (H0 + Y1) / 2, (z1 + z2) / 2), (x2 - x1, Y1 - H0, z2 - z1), M["concrete"], "Structure", bevel=0, part="slab", level=1)
 set_level(1, Y1)
 build_walls(walls1, frames1, height=H1, frame_mat=M["wood_frame"], cladding=CLAD1)
@@ -348,23 +374,27 @@ for nm, (cx, cz, sx, sz) in {"BandS": (W / 2, ZS + 0.09, W + 0.36, 0.06), "BandW
 floorp("Floor1_dormNW", (0, ZN1, 4.16, 5.51), M["wood"], 0, 1, "dorm1")
 floorp("Floor1_dormSW", (0, 5.51, XL, ZS), M["wood"], 0, 1, "dorm2")
 floorp("Floor1_bano", (4.16, ZN1, XK, 3.67), M["tile"], 0, 1, "bano")
-floorp("Floor1_hall_a", (4.16, 3.67, SW_X0, 7.14), M["wood"], 0, 1, "hall1")
+floorp("Floor1_hall_a", (4.16, 3.67, SW_X0, ST_Z1), M["wood"], 0, 1, "hall1")
+floorp("Floor1_hall_a2", (TW_X0, 7.0, SW_X0, 7.14), M["wood"], 0, 1, "hall1")
 floorp("Floor1_hall_b", (SW_X1, 3.67, XK, 7.14), M["wood"], 0, 1, "hall1")
 floorp("Floor1_hall_c", (SW_X0, SW_Z1, SW_X1, 7.14), M["wood"], 0, 1, "hall1")
-floorp("Floor1_hall_d", (XL, 5.51, 4.16, 7.14), M["wood"], 0, 1, "hall1")
+floorp("Floor1_hall_d", (XL, 5.51, TW_X0, 7.14), M["wood"], 0, 1, "hall1")
+floorp("Floor1_hall_e", (TW_X0, 5.51, 4.16, ST_Z1), M["wood"], 0, 1, "hall1")
 floorp("Floor1_padres", (XK, 3.14, W, ZS), M["wood"], 0, 1, "padres")
 floorp("Floor1_balcon", (XL, 7.14, XK, ZS), M["stone"], 0, 1, "balcon")
 box("Ceiling1", (W / 2, H1 + 0.05, (ZN1 + ZS) / 2), (W + T, 0.1, ZS - ZN1 + T), M["ceiling"], "Ceiling", bevel=0, part="ceiling", level=1)
 downlights([(2.0, 3.7), (1.5, 7.3), (5.3, 2.8), (5.3, 6.0), (8.2, 4.5), (8.2, 7.5)], height=H1)
 # stair well railing on the upper floor
-wood_railing("Rail_well_w", SW_X0, SW_Z1, SW_X0, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(True, True))
+wood_railing("Rail_well_w", SW_X0, ST_Z1 - 0.05, SW_X0, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(True, True))
 wood_railing("Rail_well_n", SW_X0 + 0.09, SW_Z0, SW_X1 - 0.05, SW_Z0, 0, h=0.95, material=M["mahogany"], newels=(False, False))
+wood_railing("Rail_well_turn", SW_X0 - 0.05, ST_Z1 - 0.05, TW_X0 + 0.05, ST_Z1 - 0.05, 0, h=0.95, material=M["mahogany"], newels=(False, True))
+wood_railing("Rail_well_s", SW_X0 + 0.05, 7.0 + 0.05, SW_X1 - 0.05, 7.0 + 0.05, 0, h=0.95, material=M["mahogany"], newels=(False, False))
 panel_door("Door_dormNW", 4.16 - 0.05, 4.9, math.pi / 2, w=0.8, room="dorm1")
 panel_door("Door_dormSW", XL - 0.05, 6.4, math.pi / 2, w=0.8, room="dorm2")
 panel_door("Door_bano", 5.85, 3.67 - 0.05, 0, w=0.7, room="bano")
 panel_door("Door_padres", XK + 0.05, 6.8, math.pi / 2, w=0.8, room="padres")
 # flight to the attic: starts on the landing by the south wall and climbs north over the well, open treads on a steel stringer
-ST2_Z0, ST2_Z1, ST2_N = 6.9, 4.0, 13
+ST2_Z0, ST2_Z1, ST2_N = 3.75, 6.6, 13
 stair_flight("Stair2", ST_X0, ST_X1, ST2_Z0, ST2_Z1, 0.0, Y2 - Y1, ST2_N, M["mahogany"], open_risers=True, stringer=M["black"])
 _run2, _rise2 = (ST2_Z1 - ST2_Z0) / ST2_N, (Y2 - Y1) / ST2_N
 for i in range(ST2_N):
@@ -375,8 +405,8 @@ for i in range(ST2_N):
 _ang2 = math.atan2(Y2 - Y1, ST2_Z1 - ST2_Z0)
 box("Stair2Rail", (ST_X0 + 0.05, (Y2 - Y1) / 2 + 0.9, (ST2_Z0 + ST2_Z1) / 2), (0.07, 0.06, math.hypot(Y2 - Y1, ST2_Z1 - ST2_Z0) + 0.2), M["mahogany"], bevel=0.01, segments=4,
     rot_x=-_ang2, part="furniture", room="hall1")
-box("Newel2", (ST_X0 + 0.05, 0.5, ST2_Z0 + 0.12), (0.09, 1.0, 0.09), M["mahogany"], bevel=0.008, part="furniture", room="hall1")
-sphere("Newel2Ball", (ST_X0 + 0.05, 1.07, ST2_Z0 + 0.12), 0.075, M["mahogany"], sub=2, part="furniture", room="hall1")
+box("Newel2", (ST_X0 + 0.05, 0.5, ST2_Z0 - 0.12), (0.09, 1.0, 0.09), M["mahogany"], bevel=0.008, part="furniture", room="hall1")
+sphere("Newel2Ball", (ST_X0 + 0.05, 1.07, ST2_Z0 - 0.12), 0.075, M["mahogany"], sub=2, part="furniture", room="hall1")
 for k, x in enumerate([5.9]):
     box(f"WinMullion{k}", (x, 1.6, 7.14), (0.04, 1.56, T + 0.07), M["wood_frame"], "Walls", bevel=0, part="frame", side="S")
 for k, y in enumerate([1.2, 1.6, 2.0]):
@@ -441,7 +471,7 @@ plant("Plant_balcon", 3.5, 7.5, s=1.0, room="balcon")
 
 # ============================================================================= DESVÁN (level 2): attic under the gable roof, dormer to the south
 RIDGE_Z, RIDGE_H, EAVE_H = (ZN1 + ZS) / 2, 2.4, 0.35          # heights relative to the attic floor
-AT_Z0, AT_Z1 = 3.6, 6.3     # opening in the attic floor over the second flight
+AT_Z0, AT_Z1 = 4.7, 7.0     # opening in the attic floor over the second flight
 for i, (x1, z1, x2, z2) in enumerate([(-0.07, ZN1 - 0.07, SW_X0, ZS + 0.07), (SW_X1, ZN1 - 0.07, W + 0.07, ZS + 0.07),
                                        (SW_X0, ZN1 - 0.07, SW_X1, AT_Z0), (SW_X0, AT_Z1, SW_X1, ZS + 0.07)]):
     box(f"Slab2_{i}", ((x1 + x2) / 2, (Y1 + H1 + Y2) / 2, (z1 + z2) / 2), (x2 - x1, Y2 - Y1 - H1, z2 - z1), M["concrete"], "Structure", bevel=0, part="slab", level=2)
@@ -451,9 +481,8 @@ floorp("Floor2_a", (0, ZN1, SW_X0, ZS), M["concrete"], 0, 2, "attic")
 floorp("Floor2_b", (SW_X1, ZN1, W, ZS), M["concrete"], 0, 2, "attic")
 floorp("Floor2_c", (SW_X0, ZN1, SW_X1, AT_Z0), M["concrete"], 0, 2, "attic")
 floorp("Floor2_d", (SW_X0, AT_Z1, SW_X1, ZS), M["concrete"], 0, 2, "attic")
-wood_railing("Rail_attic_w", SW_X0, AT_Z1, SW_X0, AT_Z0, 0, h=0.95, material=M["mahogany"], room="attic")
-wood_railing("Rail_attic_s", SW_X0 + 0.09, AT_Z1, SW_X1 - 0.05, AT_Z1, 0, h=0.95, material=M["mahogany"], room="attic", newels=(False, False))
-import bmesh, bpy  # noqa: E402
+wood_railing("Rail_attic_w", SW_X0, AT_Z0, SW_X0, AT_Z1, 0, h=0.95, material=M["mahogany"], room="attic")
+wood_railing("Rail_attic_n", SW_X0 + 0.09, AT_Z0, SW_X1 - 0.05, AT_Z0, 0, h=0.95, material=M["mahogany"], room="attic", newels=(False, False))
 from ktlib import coll, uv_box  # noqa: E402
 
 
@@ -527,7 +556,7 @@ write_plan(os.path.join(HERE, "..", "site", "casa", "plan.js"), [
                 ("estudio", (XK, ZC, W, 7.14), "#dfc39b", "Estudio"), ("patio", (XK, 0, W, ZC), "#b9b4ab", "Patio"),
                 ("wc", (WC_X0, WC_Z0, WC_X1, WC_Z1), "#c9cdd1", ""), ("porch", (XL, 7.14, W, ZS), "#bdb8b0", "Porch")]),
     dict(walls=walls1, bounds=(-0.3, ZN1 - 0.3, W + 0.3, ZS + 0.3),
-         extra=[(SW_X0, SW_Z0, SW_X0, SW_Z1, "wall"), (SW_X0, SW_Z0, SW_X1, SW_Z0, "wall"), (ST_X0, ST2_Z1, ST_X0, ST2_Z0 - 0.9, "wall")],
+         extra=[(SW_X0, SW_Z0, SW_X0, ST_Z1, "wall"), (SW_X0, SW_Z0, SW_X1, SW_Z0, "wall"), (SW_X0, ST_Z1, TW_X0, ST_Z1, "wall"), (SW_X0, 7.0, SW_X1, 7.0, "wall"), (ST_X0, ST2_Z0 + 0.9, ST_X0, ST2_Z1, "wall")],
          rooms=[("dorm1", (0, ZN1, 4.16, 5.51), "#dfc39b", "Dormitorio"), ("dorm2", (0, 5.51, XL, ZS), "#dfc39b", "Dormitorio"),
                 ("bano", (4.16, ZN1, XK, 3.67), "#c9cdd1", "Baño"), ("hall1", (XL, 3.67, XK, 7.14), "#cfc6b8", "Hall"),
                 ("padres", (XK, 3.14, W, ZS), "#d9b98c", "Padres"), ("balcon", (XL, 7.14, XK, ZS), "#bdb8b0", "Balcón")]),
