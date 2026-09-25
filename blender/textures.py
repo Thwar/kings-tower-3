@@ -221,6 +221,27 @@ def paving(size, base, slab=0.6, tile=2.4, seed=17):
     return color, rough, normal_from_height(mask * 0.7 + nz * 0.3, 1.2), tile
 
 
+def bricks(size, base, mortar, tile=1.2, course=0.075, length=0.24, seed=31, gap=0.011):
+    """running-bond brickwork: courses along the image rows (height on vertical faces), every other course shifted half a brick"""
+    ys = np.linspace(0, tile / course, size, endpoint=False)
+    xs = np.linspace(0, tile / length, size, endpoint=False)
+    row = np.floor(ys).astype(int)
+    fy = ys - row
+    xsh = xs[None, :] + (row[:, None] % 2) * 0.5
+    col = np.floor(xsh).astype(int)
+    fx = xsh - col
+    my = np.clip(np.minimum(fy, 1 - fy) * course / (gap / 2), 0, 1)[:, None]
+    mx = np.clip(np.minimum(fx, 1 - fx) * length / (gap / 2), 0, 1)
+    mask = np.minimum(my, mx)
+    ids = (row[:, None] * 37 + col * 53) % 211
+    per = np.random.default_rng(seed).random(211).astype(np.float32)[ids]
+    nz = value_noise(size, 16, seed, 4)
+    t = 1 + (per - 0.5) * 0.28 + (nz - 0.5) * 0.18
+    color = base[None, None, :] * t[..., None] * mask[..., None] + mortar[None, None, :] * (1 - mask[..., None])
+    rough = np.clip(0.82 + (1 - mask) * 0.1 + (nz - 0.5) * 0.08, 0, 1)
+    return color, rough, normal_from_height(mask * 0.85 + nz * 0.15, 1.6), tile
+
+
 def brushed(size, base, tile=0.5, seed=19):
     n = stretched_noise(size, 96, 2, seed, 3)
     color = base[None, None, :] * (1 + (n - 0.5) * 0.08)[..., None]
@@ -254,6 +275,7 @@ SETS = {
     "tile":      lambda s: tiles(s, _hex("#cfd0cf"), _hex("#a7a8a8")),
     "paving":    lambda s: paving(s, _hex("#a9a49c")),
     "brushed":   lambda s: brushed(s, _hex("#c8cacc")),
+    "brick":     lambda s: bricks(s, _hex("#a9593a"), _hex("#cfc5b6")),
     "matte_black": lambda s: fabric(s, _hex("#232426"), tile=0.4, weave=1, contrast=0.0),
 }
 

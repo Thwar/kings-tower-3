@@ -4,7 +4,8 @@ Bloque B · Departamento 101 — builds the apartment in Blender and exports sit
 Run headless:   python3 blender/build_b101.py [--blend]      (needs `pip install bpy`)
 
 One-bedroom, 100.20 m² in total, on a long north-south strip (brochure page 9, "imagen referencial"). North up:
-a large terrace at the top with an outdoor dining table and a barbecue on the east side, a laundry cubicle in
+a large terrace at the top (solid parapets, a brick barbecue with twin chimneys and a concrete counter with a sink
+along the east parapet, bronze sliding door — matched to a photo of the real terrace), a laundry cubicle in
 its SW corner, then the bedroom (sliding door onto the terrace, headboard on the east wall) with the wardrobe
 room and the bathroom stacked in a column along the WEST side, the living in the middle (sofa on the east wall),
 and the kitchen run down the west wall + dining table at the south end, entrance in the SE corner.
@@ -19,7 +20,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ktlib import (H, T, M, X, STYLE, box, soft, cyl, floor_plane, build_walls, downlights, mirror_x,  # noqa: E402
+from ktlib import (H, T, M, X, STYLE, mat, tmat, box, soft, cyl, floor_plane, build_walls, downlights, mirror_x,  # noqa: E402
                    plant, grass, sofa, lounge_chair, stool, chair, office_chair, floor_lamp, wall_art, export,
                    led_cove, gaming_desk, display_cabinet, vanity, glass_wardrobe, sectional, tv_wall, loft_coffee_table)
 
@@ -30,20 +31,28 @@ APT = dict(name="Bloque B · Dpto. 101", site="site/b101")
 # ----------------------------------------------------------------------------- plan (metres; x east, z south, origin NW corner of the terrace)
 W, TZ, D = 5.7, 6.8, 17.5           # width, terrace depth, total depth
 BZ, CZ, BS = 9.65, 12.9, 9.2        # bedroom south wall, bathroom south wall, closet/bath partition
+# terrace finishes from Thomas's photo: grey parapets, large light-grey tiles, bronze sliding door, blue-grey facade, brick barbecue
+M["parapet"] = tmat("parapet", "plaster_ext", tint="#a6adb1")
+M["facade"] = tmat("facade", "plaster_ext", tint="#e4eaee")
+M["terrace_tile"] = tmat("terrace_tile", "tile", tint="#d4d6d7")
+M["brick"] = tmat("brick", "brick")
+M["counter"] = tmat("counter_concrete", "concrete", tint="#ecebe8")
+M["anodized"] = mat("anodized", "#6f665d", 0.35, 0.8)
 walls = [
-    # terrace edge: glass railings north and west, the neighbour's wall on the east
-    (0, 0, W, 0, "N", dict(y0=0.12, y1=1.1, glass=True)),
-    (0, 0, 0, TZ, "W", dict(y0=0.12, y1=1.1, glass=True)),
-    (W, 0, W, D, "E", dict(**X)),
-    # terrace / bedroom wall with the sliding door x 0.8–2.6
-    (0, TZ, 0.8, TZ, "N", dict(ext=(True, False))), (2.6, TZ, W, TZ, "N", dict(ext=(False, True))),
-    (0.8, TZ, 2.6, TZ, "N", dict(y0=2.25, y1=H, noskirt=True)),
+    # terrace edge: solid 1.1 m parapets on three sides (the side ones 4 mm lower so the corner tops never coincide)
+    (0, 0, W, 0, "N", dict(y1=1.1, ext=(True, True), mat=M["parapet"], noclad=True)),
+    (0, 0, 0, TZ, "W", dict(y1=1.096, mat=M["parapet"], noclad=True)),
+    (W, 0, W, 5.5, "E", dict(y1=1.096, mat=M["parapet"], noclad=True)),
+    (W, 5.5, W, D, "E", dict(ext=(False, True))),
+    # terrace / bedroom wall with the sliding door x 0.6–3.0 (two leaves, 2.3 m high)
+    (0, TZ, 0.6, TZ, "N", dict(ext=(True, False))), (3.0, TZ, W, TZ, "N", dict(ext=(False, True))),
+    (0.6, TZ, 3.0, TZ, "N", dict(y0=2.3, y1=H, noskirt=True)),
     # laundry cubicle on the terrace (x 4.4–5.7, z 5.5–6.8), door on its north side x 4.6–5.4
     (4.4, 5.5, 4.6, 5.5, "N", dict(ext=(True, False))), (5.4, 5.5, W, 5.5, "N", dict(ext=(False, True))),
     (4.6, 5.5, 5.4, 5.5, "N", dict(y0=2.1, y1=H, noskirt=True)),
     (4.4, 5.5, 4.4, TZ, "W", dict(**X)),
     # west wall with the living window z 10.2–12.2
-    (0, TZ, 0, 10.2, "W", dict(ext=(True, False))), (0, 12.2, 0, D, "W", dict(ext=(False, True))),
+    (0, TZ, 0, 10.2, "W", {}), (0, 12.2, 0, D, "W", dict(ext=(False, True))),
     (0, 10.2, 0, 12.2, "W", dict(y0=0, y1=0.9)), (0, 10.2, 0, 12.2, "W", dict(y0=2.25, y1=H, noskirt=True)),
     (0, 10.2, 0, 12.2, "W", dict(y0=0.9, y1=2.25, glass=True)),
     # south wall with the entrance x 0.5–1.4
@@ -57,15 +66,15 @@ walls = [
 ]
 frames = [
     (0, 10.2, 0, 12.2, 0.9, 2.25, "W"),
-    (0.8, TZ, 2.6, TZ, 0, 2.25, "N"),
+    (0.6, TZ, 3.0, TZ, 0, 2.3, "N"),
 ]
 DOWNLIGHTS = [(1.2, 7.6), (2.6, 8.8), (4.65, 8.0), (4.65, 10.2), (4.65, 12.0), (1.2, 10.6), (2.6, 12.2),
               (1.6, 14.2), (3.6, 14.2), (1.6, 16.4), (3.6, 16.4), (5.05, 6.15)]
 
 # ----------------------------------------------------------------------------- structure
-build_walls(walls, frames)
-floor_plane("Floor_terrace_a", (0, 0, W, 5.5), M["stone"], room="terrace")
-floor_plane("Floor_terrace_b", (0, 5.5, 4.4, TZ), M["stone"], room="terrace")
+build_walls(walls, frames, frame_mat=M["anodized"], cladding={"N": M["facade"], "W": M["facade"]})
+floor_plane("Floor_terrace_a", (0, 0, W, 5.5), M["terrace_tile"], room="terrace")
+floor_plane("Floor_terrace_b", (0, 5.5, 4.4, TZ), M["terrace_tile"], room="terrace")
 floor_plane("Floor_laundry", (4.4, 5.5, W, TZ), M["tile"], room="service")
 floor_plane("Floor_bedroom", (0, TZ, 3.6, BZ), M["wood"], room="bedroom")
 floor_plane("Floor_closet", (3.6, TZ, W, BS), M["wood"], room="bedroom")
@@ -78,18 +87,18 @@ box("Ceiling", (W / 2, H + 0.05, (TZ + D) / 2), (W + T, 0.1, D - TZ + T), M["cei
 box("Ceiling_laundry", (5.05, H + 0.05, 6.08), (1.44, 0.1, 1.3), M["ceiling"], "Ceiling", bevel=0, part="ceiling")
 downlights(DOWNLIGHTS)
 
-# terrace curbs + railings (north and west edges)
-box("Curb_N", (W / 2, 0.06, 0), (W, 0.12, T), M["concrete"], "Structure", part="slab", room="terrace")
-box("RailCap_N", (W / 2, 1.12, 0), (W, 0.04, 0.05), M["railing"], "Structure", part="slab", room="terrace")
-box("Curb_W", (0, 0.06, TZ / 2 + 0.07), (T, 0.12, TZ - 0.14), M["concrete"], "Structure", part="slab", room="terrace")
-box("RailCap_W", (0, 1.12, TZ / 2 + 0.07), (0.05, 0.04, TZ - 0.14), M["railing"], "Structure", part="slab", room="terrace")
-for i, x in enumerate([0.1, 1.5, 2.9, 4.3, 5.6]):
-    box(f"RailPostN_{i}", (x, 0.6, 0), (0.03, 1.0, 0.03), M["railing"], "Structure", bevel=0, part="slab", room="terrace")
-for i, z in enumerate([1.4, 2.8, 4.2, 5.6, 6.7]):
-    box(f"RailPostW_{i}", (0, 0.6, z), (0.03, 1.0, 0.03), M["railing"], "Structure", bevel=0, part="slab", room="terrace")
-
 # doors
-box("SlideLeaf", (1.25, 1.12, TZ - 0.06), (0.9, 2.2, 0.03), M["glass"], "Glass", bevel=0, part="glass", side="I")
+# sliding door: two glass leaves in bronze frames; the operable one is slid open behind the fixed one (x 0.6–1.8 clear)
+for nm, x0, x1, dz in [("DoorFixed", 1.8, 3.0, 0.03), ("DoorSlide", 1.72, 2.92, -0.03)]:
+    zc = TZ + dz
+    box(f"{nm}_glass", ((x0 + x1) / 2, 1.14, zc), (x1 - x0 - 0.1, 2.18, 0.012), M["glass"], "Glass", bevel=0, part="glass", side="I")
+    for k, xx in enumerate([x0 + 0.03, x1 - 0.03]):
+        box(f"{nm}_stile{k}", (xx, 1.14, zc), (0.06, 2.26, 0.05), M["anodized"], "Walls", bevel=0.003, part="frame", side="N")
+    for k, yy in enumerate([0.04, 2.24]):
+        box(f"{nm}_rail{k}", ((x0 + x1) / 2, yy, zc), (x1 - x0 - 0.12, 0.06, 0.05), M["anodized"], "Walls", bevel=0.003, part="frame", side="N")
+box("DoorPull", (1.77, 1.1, TZ - 0.1), (0.03, 0.9, 0.03), M["steel"], "Furniture", bevel=0.004, part="furniture", room="terrace")
+for k, yy in enumerate([0.75, 1.45]):
+    box(f"DoorPullPost{k}", (1.77, yy, TZ - 0.07), (0.02, 0.02, 0.05), M["steel"], "Furniture", bevel=0, part="furniture", room="terrace")
 box("Door_entry", (0.95, 1.05, D - 0.08), (0.9, 2.1, 0.05), M["black"], "Furniture", part="furniture", room="kitchen")
 box("Door_handle", (1.28, 1.02, D - 0.13), (0.02, 0.3, 0.02), M["frame"], "Furniture", bevel=0, part="furniture", room="kitchen")
 box("Door_closet", (3.67, 1.05, 7.7), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="bedroom")           # open, flat against the closet wall
@@ -98,30 +107,43 @@ box("Door_laundry", (4.63, 1.05, 5.9), (0.04, 2.1, 0.8), M["walnut"], "Furniture
 
 F = dict(part="furniture")
 
-# ---------- terrace: outdoor dining for four, a brick barbecue, planters and two olive trees
+# ---------- terrace, as in the photo: along the east parapet (x≈0 here, before the mirror) a brick barbecue with twin chimneys
+#            and a long concrete counter with a sink running toward the door; the rest is open tiled floor. Light staging only:
+#            a dining table and one olive in the far corner.
 Tr = dict(room="terrace", **F)
-box("TerraceTable", (2.85, 0.74, 2.9), (1.8, 0.04, 0.9), M["walnut"], bevel=0.006, **Tr)
+BX = T / 2                     # inner face of the parapet
+box("BBQ_base", (BX + 0.375, 0.475, 1.7), (0.75, 0.95, 1.6), M["brick"], bevel=0.01, **Tr)
+box("BBQ_hearth", (BX + 0.4, 0.97, 1.7), (0.8, 0.04, 1.64), M["counter"], bevel=0.006, **Tr)
+box("BBQ_back", (BX + 0.1, 1.5, 1.7), (0.2, 1.0, 1.6), M["brick"], bevel=0.008, **Tr)
+for k, z in enumerate([0.99, 2.41]):
+    box(f"BBQ_cheek{k}", (BX + 0.375, 1.5, z), (0.75, 1.0, 0.18), M["brick"], bevel=0.008, **Tr)
+box("BBQ_lintel", (BX + 0.375, 2.15, 1.7), (0.75, 0.3, 1.6), M["brick"], bevel=0.008, **Tr)
+box("BBQ_grill", (BX + 0.45, 1.25, 1.7), (0.5, 0.015, 1.2), M["steel"], bevel=0, **Tr)
+box("BBQ_soot", (BX + 0.205, 1.5, 1.7), (0.012, 0.9, 1.2), M["black"], bevel=0, **Tr)
+for k, (z0, z1) in enumerate([(1.0, 1.6), (1.8, 2.4)]):
+    zc = (z0 + z1) / 2
+    box(f"Chimney{k}", (BX + 0.3, 2.95, zc), (0.6, 1.3, z1 - z0), M["brick"], bevel=0.008, **Tr)
+    for j, (dx, dz) in enumerate([(-0.24, -0.24), (0.24, -0.24), (-0.24, 0.24), (0.24, 0.24)]):
+        box(f"ChimneyPier{k}{j}", (BX + 0.3 + dx, 3.65, zc + dz), (0.1, 0.1, 0.1), M["brick"], bevel=0, **Tr)
+    box(f"ChimneyCap{k}", (BX + 0.3, 3.73, zc), (0.72, 0.06, z1 - z0 + 0.12), M["counter"], bevel=0.006, **Tr)
+# counter with open shelves below and a sink near the door end
+box("Counter_top", (BX + 0.33, 0.89, 3.9), (0.66, 0.06, 2.6), M["counter"], bevel=0.006, **Tr)
+box("Counter_shelf", (BX + 0.31, 0.12, 3.9), (0.6, 0.05, 2.52), M["counter"], bevel=0.004, **Tr)
+for k, z in enumerate([2.64, 3.9, 5.16]):
+    box(f"Counter_leg{k}", (BX + 0.31, 0.49, z), (0.6, 0.72, 0.07), M["counter"], bevel=0.004, **Tr)
+box("Counter_sink", (BX + 0.34, 0.905, 4.6), (0.42, 0.04, 0.5), M["steel"], bevel=0.006, **Tr)
+box("Counter_tap", (BX + 0.08, 1.06, 4.6), (0.02, 0.28, 0.02), M["frame"], bevel=0, **Tr)
+box("Counter_spout", (BX + 0.15, 1.19, 4.6), (0.16, 0.02, 0.02), M["frame"], bevel=0, **Tr)
+# light staging
+box("TerraceTable", (2.95, 0.74, 2.9), (1.8, 0.04, 0.9), M["walnut"], bevel=0.006, **Tr)
 for i, (dx, dz) in enumerate([(-0.6, -0.5), (0.6, -0.5), (-0.6, 0.5), (0.6, 0.5)]):
-    box(f"TerraceTableLeg{i}", (2.85 + dx, 0.36, 2.9 + dz * 0.75), (0.04, 0.72, 0.04), M["frame"], bevel=0, **Tr)
+    box(f"TerraceTableLeg{i}", (2.95 + dx, 0.36, 2.9 + dz * 0.75), (0.04, 0.72, 0.04), M["frame"], bevel=0, **Tr)
 for i, (dx, dz, r) in enumerate([(-0.45, -0.8, math.pi), (0.45, -0.8, math.pi), (-0.45, 0.8, 0.0), (0.45, 0.8, 0.0)]):
-    chair(f"TerraceChair{i}", 2.85 + dx, 2.9 + dz, r, room="terrace", fabric=M["linen"])
-box("BBQ", (0.75, 0.45, 0.85), (1.1, 0.9, 0.7), M["concrete"], bevel=0.008, **Tr)
-box("BBQTop", (0.75, 0.905, 0.85), (1.14, 0.03, 0.74), M["black"], bevel=0.004, **Tr)
-box("Grill", (0.55, 0.925, 0.85), (0.55, 0.012, 0.5), M["steel"], bevel=0, **Tr)
-box("BBQHood", (0.55, 1.7, 0.85), (0.6, 0.35, 0.5), M["black"], bevel=0.01, **Tr)
-box("Chimney", (0.55, 2.2, 0.85), (0.16, 0.7, 0.16), M["black"], bevel=0.004, **Tr)
-sofa("OutdoorSofa", 1.6, 5.05, math.pi, w=1.9, fabric=M["linen"], room="terrace")
-box("Rug_terrace", (1.6, 0.006, 4.4), (2.6, 0.012, 1.8), M["rug"], bevel=0.004, **Tr)
-box("OutdoorTable", (1.6, 0.3, 4.05), (0.8, 0.04, 0.45), M["walnut"], bevel=0.006, **Tr)
-box("OutdoorTableFrame", (1.6, 0.14, 4.05), (0.7, 0.26, 0.35), M["frame"], bevel=0.004, **Tr)
-for i, x in enumerate([2.0, 3.0, 4.0]):
-    box(f"Planter_{i}", (x, 0.2, 0.35), (0.8, 0.4, 0.38), M["pot_black"], bevel=0.01, **Tr)
-    grass(f"Grass_{i}", x, 0.35, s=1.0)
+    chair(f"TerraceChair{i}", 2.95 + dx, 2.9 + dz, r, room="terrace", fabric=M["linen"])
 plant("Olive_1", 5.2, 0.55, s=1.6, pot="black", room="terrace", leaves=48)
-plant("Olive_2", 0.5, 6.25, s=1.3, pot="black", room="terrace", leaves=40)
-plant("Olive_3", 3.9, 6.2, s=1.2, pot="black", room="terrace", leaves=36)
-box("WallLight", (3.5, 2.0, TZ - 0.08), (0.1, 0.22, 0.1), M["frame"], bevel=0.008, part="light", room="terrace")
-box("WallLightGlow", (3.5, 2.0, TZ - 0.14), (0.06, 0.16, 0.02), M["downlight"], bevel=0, part="light", room="terrace")
+# small black wall light on the west parapet (x = W here), as in the photo
+box("WallLight", (W - T / 2 - 0.05, 0.85, 3.2), (0.1, 0.12, 0.1), M["black"], bevel=0.006, part="light", room="terrace")
+box("WallLightGlow", (W - T / 2 - 0.106, 0.83, 3.2), (0.012, 0.06, 0.07), M["downlight"], bevel=0, part="light", room="terrace")
 
 # ---------- laundry cubicle
 Sv = dict(room="service", **F)
@@ -272,7 +294,7 @@ LIGHTS = [(f"Down_{i}", (x, 2.5, z), 18, (1.0, 0.92, 0.8)) for i, (x, z) in enum
     ("FloorLamp", (1.2, 1.45, 12.55), 25),
     ("WallLamp_a", (0.25, 1.1, 7.1), 6), ("WallLamp_b", (0.25, 1.1, 9.6), 6),
     ("LED", (5.45, 1.7, 14.6), 14, (1.0, 0.95, 0.85), 1.6),
-    ("Terrace", (3.5, 2.0, TZ - 0.3), 12),
+    ("Terrace", (W - 0.4, 0.9, 3.2), 12),
 ]
 mirror_x(W)   # the brochure has the column on the west: flip everything built above
 _mx = lambda p: (W - p[0], p[1], p[2])
