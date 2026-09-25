@@ -340,7 +340,8 @@ def build_walls(walls, frames, height=H, y_base=0.0, level=None, frame_mat=None,
             box(f"Glass_{side}_L{level}_{i:02d}", (cx, (g0 + g1) / 2, cz), (length_ext, g1 - g0, 0.02), M["glass"], "Glass",
                 bevel=0, rot_z=rot, part="glass", side=side, level=level)
             continue
-        box(f"Wall_{side}_L{level}_{i:02d}", (cx, (y0 + y1) / 2, cz), (length_ext, y1 - y0, T),
+        wt = o.get("t", T)   # per-wall thickness (a chunky fin, a thin partition)
+        box(f"Wall_{side}_L{level}_{i:02d}", (cx, (y0 + y1) / 2, cz), (length_ext, y1 - y0, wt),
             o.get("mat") or M["plaster"], "Walls", bevel=0.006, rot_z=rot, part="wall", side=side, level=level)
         if cladding and side in cladding and not o.get("noclad"):
             nx, nz = -uz, ux                                   # one of the wall's two normals
@@ -353,7 +354,7 @@ def build_walls(walls, frames, height=H, y_base=0.0, level=None, frame_mat=None,
         if base_floor and not o.get("noskirt"):
             s0, s1 = (0.01 if e0 else 0), (0.01 if e1 else 0)
             scx, scz = cx + ux * (s1 - s0) / 2, cz + uz * (s1 - s0) / 2
-            box(f"Skirting_{side}_L{level}_{i:02d}", (scx, y_base + (0.08 - jit) / 2, scz), (length_ext + s0 + s1, 0.08 - jit, T + 0.024), M["skirting"], "Walls",
+            box(f"Skirting_{side}_L{level}_{i:02d}", (scx, y_base + (0.08 - jit) / 2, scz), (length_ext + s0 + s1, 0.08 - jit, wt + 0.024), M["skirting"], "Walls",
                 bevel=0.003, rot_z=rot, part="wall", side=side, level=level)
 
     for i, (x1, z1, x2, z2, y0, y1, fside) in enumerate(frames):
