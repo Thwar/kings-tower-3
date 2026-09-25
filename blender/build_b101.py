@@ -41,6 +41,7 @@ M["anodized"] = mat("anodized", "#6f665d", 0.35, 0.8)
 M["accent"] = tmat("accent_grey", "plaster", tint="#737c82")
 M["led_warm"] = mat("led_warm", "#fff2c0", 0.5, emit="#ffc868", emit_strength=4.0)
 M["futon"] = tmat("futon", "charcoal", tint="#2c2c2e", sheen=0.3)
+M["proj_screen"] = mat("proj_screen", "#f3f3f1", 0.95)
 M["headboard"] = tmat("headboard_leather", "leather", tint="#3a3a3c", clearcoat=0.2)
 if STYLE == "bachelor":
     M["skirting"] = mat("skirting_wood", "#6e3b24", 0.5)
@@ -212,6 +213,24 @@ box("LaptopBase", (CX - 0.02, 0.638, 8.1), (0.22, 0.015, 0.31), M["steel"], beve
 box("LaptopScreen", (CF - 0.03, 0.75, 8.1), (0.012, 0.21, 0.31), M["steel"], bevel=0.003, **Tv)
 box("LaptopDisplay", (CF - 0.037, 0.75, 8.1), (0.003, 0.19, 0.29), M["tv"], bevel=0, part="light", room="bedroom")
 
+def projector_corner(prefix, zc, width=2.0, room="living"):
+    """living-room cinema: matte projection screen (16:9) on the long outer wall, black case above it, a low media bench with a
+    soundbar below, and a ceiling-mounted projector above the couch about 2.9 m back from the screen"""
+    Pj = dict(part="furniture", room=room)
+    h = width * 9 / 16
+    yc = 0.95 + h / 2
+    box(f"{prefix}Border", (0.082, yc, zc), (0.006, h + 0.08, width + 0.08), M["black"], bevel=0, **Pj)
+    box(f"{prefix}Screen", (0.09, yc, zc), (0.01, h, width), M["proj_screen"], bevel=0, **Pj)
+    box(f"{prefix}Case", (0.13, yc + h / 2 + 0.1, zc), (0.12, 0.1, width + 0.2), M["black"], bevel=0.01, **Pj)
+    box(f"{prefix}Bench", (0.26, 0.2, zc), (0.38, 0.4, 1.8), M["walnut"], bevel=0.008, **Pj)
+    box(f"{prefix}BenchGap", (0.452, 0.2, zc), (0.005, 0.36, 0.005), M["frame"], bevel=0, **Pj)
+    box(f"{prefix}Soundbar", (0.3, 0.44, zc), (0.1, 0.07, 0.9), M["black"], bevel=0.01, **Pj)
+    px = 3.0                                      # over the couch
+    cyl(f"{prefix}Pole", (px, H - 0.14, zc), 0.015, 0.28, M["frame"], verts=8, **Pj)
+    box(f"{prefix}Projector", (px, H - 0.33, zc), (0.3, 0.1, 0.28), M["white"], bevel=0.02, segments=4, **Pj)
+    cyl(f"{prefix}Lens", (px - 0.16, H - 0.33, zc), 0.035, 0.03, M["screen"], rot=(0, math.radians(90), 0), **Pj)
+
+
 # ---------- bathroom: shower across the south end, toilet and vanity on the east wall
 Ba = dict(room="bath", **F)
 box("ShowerGlass", (4.65, 1.1, 11.7), (1.9, 2.2, 0.01), M["glass"], "Glass", bevel=0, part="glass", side="I", room="bath")
@@ -231,8 +250,8 @@ box("TowelRail", (3.68, 1.2, 11.2), (0.015, 0.015, 0.5), M["frame"], bevel=0, **
 soft("Towel", (3.7, 1.0, 11.2), (0.03, 0.4, 0.3), M["towel"], r=0.01, **Ba)
 
 if STYLE == "bachelor":
-    # ---------- living: the couch backs onto the closet/bath column just past the bathroom door, facing a low sideboard and a
-    #            large print on the long outer wall; coffee table and rug between them (the TV is in the bedroom, facing the bed)
+    # ---------- living: the couch backs onto the closet/bath column just past the bathroom door, facing a projection screen on
+    #            the long outer wall with the projector on the ceiling above the couch (the TV is in the bedroom, facing the bed)
     L = dict(room="living", **F)
     LZ = 11.85
     box("Rug_living", (1.8, 0.008, LZ), (2.6, 0.012, 2.0), M["rug"], bevel=0.004, **L)
@@ -242,11 +261,7 @@ if STYLE == "bachelor":
     box("Book1", (1.75, 0.37, LZ - 0.35), (0.2, 0.025, 0.28), M["book"], bevel=0.004, **L)
     box("Tray", (1.75, 0.365, LZ + 0.3), (0.2, 0.015, 0.3), M["frame"], bevel=0.004, **L)
     floor_lamp("FloorLamp", 0.35, 10.2)
-    box("Sideboard", (0.28, 0.36, LZ), (0.42, 0.62, 1.6), M["walnut"], bevel=0.008, **L)
-    box("SideboardGap", (0.495, 0.36, LZ), (0.005, 0.58, 0.005), M["frame"], bevel=0, **L)
-    wall_art("Art_living", 0.09, 1.55, LZ, 1.3, 0.85, -math.pi / 2, M["art2"])
-    cyl("SideboardVase", (0.28, 0.8, LZ - 0.5), 0.07, 0.26, M["pot_clay"], r2=0.05, bevel=0.01, **L)
-    box("SideboardBooks", (0.28, 0.7, LZ + 0.45), (0.22, 0.06, 0.3), M["book"], bevel=0.004, **L)
+    projector_corner("Cinema", LZ, width=2.0)
 
 # ---------- kitchen + dining: matte black run down the east wall with the fridge at the south end, table for four, entry
 K = dict(room="kitchen", **F)
@@ -284,8 +299,7 @@ for i, z in enumerate([14.95, 15.85]):
 box("CoatRail", (0.09, 1.7, 16.3), (0.03, 0.03, 0.5), M["frame"], bevel=0, **K)
 for i in range(3):
     box(f"Hook{i}", (0.11, 1.65, 16.1 + i * 0.15), (0.05, 0.08, 0.012), M["frame"], bevel=0, **K)
-if STYLE == "bachelor":
-    wall_art("Art_kitchen", 0.09, 1.55, 13.6, 0.9, 1.2, math.pi / 2, M["art2"], room="kitchen")
+
 plant("Plant_kitchen", 4.4, 17.05, s=1.2, room="kitchen")
 
 if STYLE == "loft":
@@ -316,8 +330,7 @@ if STYLE == "loft":
     sectional("Sofa", 3.04, 11.85, math.pi / 2, w=2.0)
     loft_coffee_table("CoffeeTable", 1.7, 11.85)
     display_cabinet("Cabinet", 0.27, 10.45, -math.pi / 2)
-    box("Sideboard", (0.28, 0.36, 11.95), (0.42, 0.62, 1.6), M["black"], bevel=0.008, **L)
-    wall_art("Art_living", 0.09, 1.55, 11.95, 1.3, 0.85, -math.pi / 2, M["art2"])
+    projector_corner("Cinema", 11.95, width=1.8)
     floor_lamp("FloorLamp", 0.35, 12.8)
     # gaming desk against the west wall of the dining zone (the kitchen art comes off that wall)
     gaming_desk("Desk", 0.45, 13.75, -math.pi / 2, room="kitchen")
