@@ -15,7 +15,7 @@ export default {
   views: [
     { key: 'whole',   name: 'Whole apartment', room: 'Whole apartment', area: '100.20 m² incl. terrace', title: 'One bedroom, one long terrace.',
       pos: [20.7, 19.0, 28.0], target: [2.85, 0.4, 9.0], walk: [4.7, 16.8, 0.0] },
-    { key: 'living',  name: 'Living',          room: 'Living',            area: '≈ 11 m²',  title: 'Couch, screen, and the bed around the fin.',
+    { key: 'living',  name: 'Living',          room: 'Living',            area: '≈ 11 m²',  title: 'Couch by the column, bed round the corner.',
       pos: [13.7, 6.0, 11.3], target: [3.7, 0.6, 11.3], walk: [4.3, 13.4, 0.1] },
     { key: 'kitchen', name: 'Kitchen & dining', room: 'Kitchen & dining', area: '≈ 26 m²',  title: 'Table for four.',
       pos: [2.85, 7.0, 25.0], target: [2.7, 0.7, 15.3], walk: [4.3, 13.6, -(Math.PI - 0.5)] },

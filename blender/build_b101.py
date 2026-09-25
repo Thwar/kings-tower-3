@@ -66,8 +66,8 @@ walls = [
     (0, D, 0.5, D, "S", dict(ext=(True, False))), (1.4, D, W, D, "S", dict(ext=(False, True))),
     (0.5, D, 1.4, D, "S", dict(y0=2.1, y1=H, noskirt=True)),
     # interior: the bedroom opens straight onto the living (no wall); the east column (closet door z 7.3–8.1, bath door z 10.0–10.8)
-    (3.6, TZ, 3.6, 7.3, "I", dict(ext=(True, False))), (3.6, 8.1, 3.6, 10.0, "I", {}), (3.6, 10.8, 3.6, CZ, "I", dict(ext=(False, True))),
-    (3.6, 7.3, 3.6, 8.1, "I", dict(y0=2.1, y1=H, noskirt=True)), (3.6, 10.0, 3.6, 10.8, "I", dict(y0=2.1, y1=H, noskirt=True)),
+    (3.6, TZ, 3.6, 7.0, "I", dict(ext=(True, False))), (3.6, 7.7, 3.6, 10.0, "I", {}), (3.6, 10.8, 3.6, CZ, "I", dict(ext=(False, True))),
+    (3.6, 7.0, 3.6, 7.7, "I", dict(y0=2.1, y1=H, noskirt=True)), (3.6, 10.0, 3.6, 10.8, "I", dict(y0=2.1, y1=H, noskirt=True)),
     (3.6, BS, W, BS, "I", dict(**X)),
     (3.6, CZ, W, CZ, "I", dict(**X)),
 ]
@@ -107,7 +107,7 @@ for k, yy in enumerate([0.75, 1.45]):
     box(f"DoorPullPost{k}", (1.77, yy, TZ - 0.07), (0.02, 0.02, 0.05), M["steel"], "Furniture", bevel=0, part="furniture", room="terrace")
 box("Door_entry", (0.95, 1.05, D - 0.08), (0.9, 2.1, 0.05), M["black"], "Furniture", part="furniture", room="kitchen")
 box("Door_handle", (1.28, 1.02, D - 0.13), (0.02, 0.3, 0.02), M["frame"], "Furniture", bevel=0, part="furniture", room="kitchen")
-box("Door_closet", (3.67, 1.05, 7.7), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="bedroom")           # open, flat against the closet wall
+box("Door_closet", (4.07, 1.05, 7.72), (0.8, 2.1, 0.04), M["walnut"], "Furniture", part="furniture", room="bedroom")          # open into the closet, hinged at its south jamb
 box("Door_bath", (3.53, 1.05, 10.4), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="bath")             # open flat on the living side
 box("Door_laundry", (4.63, 1.05, 5.9), (0.04, 2.1, 0.8), M["walnut"], "Furniture", part="furniture", room="service")
 
@@ -188,6 +188,30 @@ if STYLE == "bachelor":
     box("ClosetBox1", (4.1, 1.53, TZ + 0.25), (0.35, 0.24, 0.35), M["black"], bevel=0.01, **B)
     box("ClosetBox2", (4.6, 1.03, TZ + 0.25), (0.35, 0.24, 0.35), M["book"], bevel=0.01, **B)
 
+# ---------- TV wall facing the bed (both schemes): floating white console 150 × 25 cm with open cubbies and a warm LED strip
+#            underneath, a 55" TV above it, a PS5 with its controller and a laptop on top
+Tv = dict(room="bedroom", **F)
+CF = 3.6 - T / 2                                  # column face
+CZ0, CZ1 = 7.8, 9.3                               # console extent along the wall
+CX = CF - 0.125
+box("TVConsoleTop", (CX, 0.615, (CZ0 + CZ1) / 2), (0.25, 0.03, CZ1 - CZ0), M["white"], bevel=0.004, **Tv)
+box("TVConsoleBottom", (CX, 0.365, (CZ0 + CZ1) / 2), (0.25, 0.03, CZ1 - CZ0), M["white"], bevel=0.004, **Tv)
+for k, z in enumerate([CZ0 + 0.015, 8.45, 8.9, CZ1 - 0.015]):
+    box(f"TVConsoleDiv{k}", (CX, 0.49, z), (0.25, 0.22, 0.03), M["white"], bevel=0.003, **Tv)
+box("TVConsoleDoor", (CF - 0.245, 0.49, (CZ0 + 8.45) / 2), (0.012, 0.22, 8.45 - CZ0 - 0.04), M["white"], bevel=0.003, **Tv)   # closed section on the left
+box("TVConsoleLED", (CF - 0.12, 0.345, (CZ0 + CZ1) / 2), (0.18, 0.01, CZ1 - CZ0 - 0.06), M["led_warm"], bevel=0, part="light", room="bedroom")
+box("BluRay", (CX + 0.02, 0.42, 8.68), (0.2, 0.06, 0.34), M["black"], bevel=0.004, **Tv)
+box("BooksConsole", (CX + 0.02, 0.41, 9.1), (0.2, 0.05, 0.3), M["book"], bevel=0.004, **Tv)
+TVZ = 8.4
+box("BedTV", (CF - 0.015, 1.42, TVZ), (0.03, 0.70, 1.23), M["screen"], bevel=0.004, **Tv)
+box("BedTVpanel", (CF - 0.032, 1.42, TVZ), (0.004, 0.66, 1.19), M["screen"], bevel=0, **Tv)
+box("PS5", (CX + 0.01, 0.83, 9.08), (0.26, 0.39, 0.1), M["white"], bevel=0.02, segments=4, **Tv)
+box("PS5core", (CX + 0.01, 0.82, 9.08), (0.27, 0.36, 0.04), M["black"], bevel=0.01, **Tv)
+soft("Controller", (CX - 0.02, 0.655, 8.85), (0.1, 0.05, 0.16), M["white"], r=0.02, **Tv)
+box("LaptopBase", (CX - 0.02, 0.638, 8.1), (0.22, 0.015, 0.31), M["steel"], bevel=0.004, **Tv)
+box("LaptopScreen", (CF - 0.03, 0.75, 8.1), (0.012, 0.21, 0.31), M["steel"], bevel=0.003, **Tv)
+box("LaptopDisplay", (CF - 0.037, 0.75, 8.1), (0.003, 0.19, 0.29), M["tv"], bevel=0, part="light", room="bedroom")
+
 # ---------- bathroom: shower across the south end, toilet and vanity on the east wall
 Ba = dict(room="bath", **F)
 box("ShowerGlass", (4.65, 1.1, 11.7), (1.9, 2.2, 0.01), M["glass"], "Glass", bevel=0, part="glass", side="I", room="bath")
@@ -207,8 +231,8 @@ box("TowelRail", (3.68, 1.2, 11.2), (0.015, 0.015, 0.5), M["frame"], bevel=0, **
 soft("Towel", (3.7, 1.0, 11.2), (0.03, 0.4, 0.3), M["towel"], r=0.01, **Ba)
 
 if STYLE == "bachelor":
-    # ---------- living: the couch backs onto the closet/bath column just past the bathroom door, the TV faces it from the
-    #            long outer wall (where the couch stands in the photo); coffee table and rug between them
+    # ---------- living: the couch backs onto the closet/bath column just past the bathroom door, facing a low sideboard and a
+    #            large print on the long outer wall; coffee table and rug between them (the TV is in the bedroom, facing the bed)
     L = dict(room="living", **F)
     LZ = 11.85
     box("Rug_living", (1.8, 0.008, LZ), (2.6, 0.012, 2.0), M["rug"], bevel=0.004, **L)
@@ -218,12 +242,11 @@ if STYLE == "bachelor":
     box("Book1", (1.75, 0.37, LZ - 0.35), (0.2, 0.025, 0.28), M["book"], bevel=0.004, **L)
     box("Tray", (1.75, 0.365, LZ + 0.3), (0.2, 0.015, 0.3), M["frame"], bevel=0.004, **L)
     floor_lamp("FloorLamp", 0.35, 10.2)
-    box("Console", (0.28, 0.42, LZ), (0.42, 0.28, 1.6), M["walnut"], bevel=0.008, **L)
-    box("ConsoleGap", (0.495, 0.42, LZ), (0.005, 0.01, 1.56), M["frame"], bevel=0, **L)
-    box("TV", (0.1, 1.35, LZ), (0.035, 0.72, 1.25), M["screen"], bevel=0.004, **L)
-    box("TVpanel", (0.12, 1.35, LZ), (0.004, 0.66, 1.19), M["screen"], bevel=0, **L)
-    box("Speaker1", (0.28, 0.14, LZ - 0.65 - 0.3), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
-    box("Speaker2", (0.28, 0.14, LZ + 0.65 + 0.3), (0.2, 0.28, 0.16), M["black"], bevel=0.008, **L)
+    box("Sideboard", (0.28, 0.36, LZ), (0.42, 0.62, 1.6), M["walnut"], bevel=0.008, **L)
+    box("SideboardGap", (0.495, 0.36, LZ), (0.005, 0.58, 0.005), M["frame"], bevel=0, **L)
+    wall_art("Art_living", 0.09, 1.55, LZ, 1.3, 0.85, -math.pi / 2, M["art2"])
+    cyl("SideboardVase", (0.28, 0.8, LZ - 0.5), 0.07, 0.26, M["pot_clay"], r2=0.05, bevel=0.01, **L)
+    box("SideboardBooks", (0.28, 0.7, LZ + 0.45), (0.22, 0.06, 0.3), M["book"], bevel=0.004, **L)
 
 # ---------- kitchen + dining: matte black run down the east wall with the fridge at the south end, table for four, entry
 K = dict(room="kitchen", **F)
@@ -282,7 +305,7 @@ if STYLE == "loft":
         box(f"WallLampArm_{i}", (0.12, 1.15, z), (0.14, 0.02, 0.02), M["frame"], bevel=0, **B)
         cyl(f"WallLamp_{i}", (0.22, 1.1, z), 0.05, 0.12, M["lamp"], r2=0.06, part="light", room="bedroom")
     wall_art("Art_bedroom", 0.09, 1.75, 8.2, 1.4, 0.55, math.pi / 2, M["art2"], room="bedroom")
-    plant("Plant_bedroom", 3.2, 7.2, s=1.2, room="bedroom")
+    plant("Plant_bedroom", 2.95, 9.45, s=1.1, room="bedroom")
     glass_wardrobe("Wardrobe", 5.33, 8.0, -math.pi / 2, w=2.2)
     vanity("Vanity", 4.4, 8.85, math.pi)
     for i, y in enumerate([1.5, 1.95]):
@@ -292,9 +315,10 @@ if STYLE == "loft":
     box("Rug_living", (1.8, 0.008, 11.85), (2.4, 0.012, 2.0), M["rug"], bevel=0.004, **L)
     sectional("Sofa", 3.04, 11.85, math.pi / 2, w=2.0)
     loft_coffee_table("CoffeeTable", 1.7, 11.85)
-    tv_wall("TVwall", 0.06, 11.85, -math.pi / 2, w=1.6, shelf_dx=0.85, shoes=False)
-    display_cabinet("Cabinet", 3.32, 9.5, math.pi / 2)
-    floor_lamp("FloorLamp", 0.35, 10.2)
+    display_cabinet("Cabinet", 0.27, 10.45, -math.pi / 2)
+    box("Sideboard", (0.28, 0.36, 11.95), (0.42, 0.62, 1.6), M["black"], bevel=0.008, **L)
+    wall_art("Art_living", 0.09, 1.55, 11.95, 1.3, 0.85, -math.pi / 2, M["art2"])
+    floor_lamp("FloorLamp", 0.35, 12.8)
     # gaming desk against the west wall of the dining zone (the kitchen art comes off that wall)
     gaming_desk("Desk", 0.45, 13.75, -math.pi / 2, room="kitchen")
 
